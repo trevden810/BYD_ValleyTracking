@@ -1,0 +1,190 @@
+Columns in Manual Export:
+ - box_serial_numbers_scanned_delivered_json
+ - box_serial_numbers_scanned_received_json
+ - _kf_city_id
+ - _kf_city_id_2
+ - _kf_client_class_id
+ - _kf_client_code_id
+ - _kf_client_id
+ - _kf_disposition
+ - _kf_driver_id
+ - _kf_invoice_id
+ - _kf_lead_id
+ - _kf_make_id
+ - _kf_market_id
+ - _kf_miles_oneway_id
+ - _kf_model_id
+ - _kf_notification_id
+ - _kf_product_weight_id
+ - _kf_route_id
+ - _kf_state_id
+ - _kf_state_id_2
+ - _kf_trucks_id
+ - _kp_job_id
+ - account_create
+ - account_mod
+ - additional_pieces_count
+ - Additional_unit
+ - address_as_entered_selected_by_name
+ - address_C1
+ - address_C2
+ - address_standardized
+ - address2_C1
+ - address2_C2
+ - billing_status
+ - Build_ Time_to_Build
+ - Build_#_Days_Until_Built
+ - Build_Actual_DEL_Date
+ - Build_Date_Built
+ - Build_Date_Machine_Recd
+ - Build_Expected_DEL_Date
+ - build_status
+ - call_ahead
+ - Canon_build_assign
+ - charge_finisher
+ - charge_lct
+ - client_order_number
+ - client_order_number_2
+ - client_rep_email
+ - client_rep_name
+ - client_rep_phone_num
+ - contact_C1
+ - contact_C1b
+ - contact_C1c
+ - contact_C2
+ - contact_C2b
+ - contact_C2c
+ - Customer_C1
+ - Customer_C2
+ - date_received
+ - description_product
+ - detainment
+ - Dims_of_product
+ - due_date
+ - edi_business_reference
+ - edi_date_204
+ - edi_equipment_type_code
+ - edi_job_control
+ - edi_originator_code
+ - edi_time_204
+ - edi_transaction_control
+ - estimated_time
+ - hours_eta_end
+ - hours_eta_start
+ - job_date
+ - job_reference_prior
+ - job_reject_status
+ - job_status
+ - job_status_driver
+ - job_type
+ - location_load
+ - location_return
+ - location_WH
+ - locked
+ - meter_reading_blk
+ - meter_reading_clr
+ - miles_excess
+ - miles_excess 2
+ - miles_excess_billed
+ - miles_one_way_2
+ - model_finisher
+ - model_lct
+ - named_insurance
+ - notes_all_read_only
+ - notes_billing
+ - notes_call_ahead
+ - notes_driver
+ - notes_driver_last_edited_ts
+ - notes_invoice
+ - notes_job
+ - notes_schedule
+ - notification_detail
+ - notification_final_by
+ - notification_final_ts
+ - notification_initial_by
+ - notification_initial_ts
+ - oneway_miles
+ - oneway_miles_C2
+ - order_C1
+ - order_C2
+ - order_load
+ - order_return
+ - people_actual
+ - people_required
+ - performance_driver
+ - performance_job
+ - performance_ls
+ - phone_C1
+ - phone_C1_alt
+ - phone_C1_alt_ext
+ - phone_C1_ext
+ - phone_C2
+ - phone_C2_alt
+ - phone_C2_alt_ext
+ - phone_C2_ext
+ - pickups_destination
+ - pics_received
+ - pics_required
+ - piece_finisher_serial
+ - piece_LCT_serial
+ - piece_total
+ - product_serial_number
+ - product_type
+ - Quoted
+ - Quoted_amount
+ - Quoted_by
+ - Quoted_notes
+ - Quoted_pay_by
+ - r_timestamp_delivered
+ - Recovery_number
+ - Reference_1
+ - ricoh_missed_job_reason
+ - same_day
+ - same_day_return
+ - shuttle_date
+ - signed_by
+ - staging
+ - Stairs
+ - take_crate
+ - time_arival
+ - time_complete
+ - time_info_1
+ - time_info_2
+ - time_plan_finish
+ - time_plan_start
+ - time_type
+ - timestamp_create
+ - timestamp_mod
+ - total_staging
+ - TTR_Amount
+ - zip_C1
+ - zip_C2
+ - CLIENTS::_kp_client_type
+ - GEOFENCE_in::ts_display
+ - GEOFENCE_out::ts_display
+ - PDF::description
+ - PDF::page_count
+ - PDF::task_type
+ - PEP2::clipboard_g
+ - PEP2::market
+ - TASKS::type
+
+First 3 rows of data:
+   box_serial_numbers_scanned_delivered_json                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       box_serial_numbers_scanned_received_json _kf_city_id  _kf_city_id_2  _kf_client_class_id _kf_client_code_id  _kf_client_id _kf_disposition _kf_driver_id  _kf_invoice_id _kf_lead_id _kf_make_id _kf_market_id  _kf_miles_oneway_id                          _kf_model_id _kf_notification_id  _kf_product_weight_id _kf_route_id _kf_state_id  _kf_state_id_2  _kf_trucks_id  _kp_job_id account_create account_mod  additional_pieces_count Additional_unit  address_as_entered_selected_by_name         address_C1  address_C2 address_standardized address2_C1  address2_C2 billing_status  Build_ Time_to_Build  Build_#_Days_Until_Built  Build_Actual_DEL_Date  Build_Date_Built  Build_Date_Machine_Recd  Build_Expected_DEL_Date  build_status call_ahead  Canon_build_assign  charge_finisher  charge_lct  client_order_number client_order_number_2  client_rep_email  client_rep_name  client_rep_phone_num               contact_C1 contact_C1b  contact_C1c  contact_C2  contact_C2b  contact_C2c   Customer_C1  Customer_C2 date_received                   description_product  detainment  Dims_of_product  due_date  edi_business_reference  edi_date_204  edi_equipment_type_code  edi_job_control  edi_originator_code  edi_time_204  edi_transaction_control  estimated_time hours_eta_end hours_eta_start   job_date  job_reference_prior  job_reject_status job_status  job_status_driver  job_type location_load location_return  location_WH  locked  meter_reading_blk  meter_reading_clr  miles_excess  miles_excess 2  miles_excess_billed  miles_one_way_2  model_finisher  model_lct named_insurance                                                                                                                                                                                              notes_all_read_only                             notes_billing notes_call_ahead                                                                       notes_driver notes_driver_last_edited_ts  notes_invoice                             notes_job notes_schedule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  notification_detail notification_final_by notification_final_ts notification_initial_by notification_initial_ts  oneway_miles  oneway_miles_C2  order_C1  order_C2  order_load  order_return  people_actual  people_required  performance_driver        performance_job  performance_ls  phone_C1  phone_C1_alt  phone_C1_alt_ext  phone_C1_ext  phone_C2  phone_C2_alt  phone_C2_alt_ext  phone_C2_ext  pickups_destination  pics_received pics_required  piece_finisher_serial  piece_LCT_serial  piece_total product_serial_number  product_type  Quoted  Quoted_amount  Quoted_by  Quoted_notes  Quoted_pay_by  r_timestamp_delivered Recovery_number                                 Reference_1  ricoh_missed_job_reason same_day same_day_return  shuttle_date  signed_by staging Stairs  take_crate  time_arival  time_complete time_info_1 time_info_2 time_plan_finish time_plan_start time_type    timestamp_create       timestamp_mod  total_staging  TTR_Amount   zip_C1  zip_C2  CLIENTS::_kp_client_type  GEOFENCE_in::ts_display  GEOFENCE_out::ts_display PDF::description  PDF::page_count  PDF::task_type  PEP2::clipboard_g PEP2::market TASKS::type
+0                                        NaN  {\n\t"6302168" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:37:58 AM",\n\t\t"username" : "Derek Wyant"\n\t},\n\t"6302169" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:38:04 AM",\n\t\t"username" : "Derek Wyant"\n\t},\n\t"6302170" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:38:10 AM",\n\t\t"username" : "Derek Wyant"\n\t},\n\t"6302171" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:37:54 AM",\n\t\t"username" : "Derek Wyant"\n\t},\n\t"6302172" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:38:34 AM",\n\t\t"username" : "Derek Wyant"\n\t},\n\t"6302173" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:38:40 AM",\n\t\t"username" : "Derek Wyant"\n\t},\n\t"6302174" : \n\t{\n\t\t"latitude" : "",\n\t\t"longitude" : "",\n\t\t"manual" : 0,\n\t\t"timestamp" : "2/11/2026 8:38:43 AM",\n\t\t"username" : "Derek Wyant"\n\t}\n}   SHORELINE            NaN                130.0               BYDw         1785.0        Standard           NaN             NaN         NaN         BYD    Washington                 29.9  CARPORT - KINGSPORT 20x12 - DS BOX 7                Done                 1018.0          NaN           WA             NaN            NaN    928576.0  Jeff Almquist     default                      NaN              NO                                  NaN  15533 14th Ave Ne         NaN    15533 14TH AVE NE         NaN          NaN        Initial                   NaN                       NaN                    NaN               NaN                      NaN                      NaN           NaN        Yes                 NaN              NaN         NaN         5.050046e+09            5050046022               NaN              NaN                   NaN  Keith Loftin 6025684222         NaN          NaN         NaN          NaN          NaN  Keith Loftin          NaN    2026-02-09  CARPORT - KINGSPORT 20x12 - DS BOX 1         0.0              NaN       NaN                     NaN           NaN                      NaN              NaN                  NaN           NaN                      NaN             NaN       2:30 PM        12:30 PM 2026-02-16                  NaN                NaN   Canceled                NaN  Delivery           PEP             NaN          NaN     NaN                NaN                NaN           NaN             NaN                 29.9              NaN             NaN        NaN              NO  Job notes: 2306189BCOM, FREIGHT | PICS REQUIRED.\n\nDriver notes: CUSTOMER CALLED AND REQUESTED THIS DELIVERY BE CANCELED AS IT  WILL BE RETURNED. \n\nBilling notes: Welcome Mat | Base: $0, FuelSurcharge: $0  Welcome Mat\nBase: $0, FuelSurcharge: $0     1 Hour Prior  CUSTOMER CALLED AND REQUESTED THIS DELIVERY BE CANCELED AS IT  WILL BE RETURNED.          2026-02-16 10:28:59            NaN  2306189BCOM, FREIGHT\nPICS REQUIRED.            NaN  2/16 7:46 (P) API Box #'s: 6302168, 6302169, 6302170, 6302171, 6302172, 6302173, 6302174 - Loaded - Canceled\n2/16 7:46 (P) API OutForDelivery\nChauntia 2/16 8:29 (M) pix Job: Canceled\nChauntia 2/16 8:29 (M) API Canceled\nJoselito Hondolero 2/16 7:10 (P) API Box #'s: 6302168, 6302169, 6302170, 6302171, 6302172, 6302173, 6302174 - Loaded - Entered\nJoselito Hondolero 2/16 7:09 (P) API OutForDelivery\nJoselito Hondolero 2/16 7:09 (P) API AppointmentScheduled\nDerek Wyant 2/11 11:38 (E) API Box #'s: 6302168, 6302169, 6302170, 6302171, 6302172, 6302173, 6302174 - Received - Entered\nJeff Almquist 2/6 17:00 (E) API Tendered              Chauntia   2026-02-16 07:29:04      Joselito Hondolero     2026-02-16 07:09:50          29.9              NaN       NaN       NaN         NaN           NaN            NaN              NaN                 NaN  NS - Customer Refused             NaN       NaN           NaN               NaN           NaN       NaN           NaN               NaN           NaN                  NaN            NaN           NaN                    NaN               NaN          7.0               6302168           NaN     0.0            NaN        NaN           NaN            NaN                    NaN      1000015898  Drop and go, no need to collect signature.                      NaN       NO              NO           NaN        NaN      NO    NaN         NaN          NaN            NaN         NaT         NaT  0 days 13:30:00 0 days 13:00:00       NaN 2026-02-06 17:00:18 2026-02-16 07:46:32            NaN         0.0  98155.0     NaN                       NaN                      NaN                       NaN              NaN              NaN             NaN                NaN     Colorado          In
+1                                        NaN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            NaN         NaN            NaN                  NaN                NaN            NaN             NaN           NaN             NaN         NaN         NaN           NaN                  NaN                                   NaN                 NaN                    NaN          NaN          NaN             NaN            NaN         NaN            NaN         NaN                      NaN             NaN                                  NaN                NaN         NaN                  NaN         NaN          NaN            NaN                   NaN                       NaN                    NaN               NaN                      NaN                      NaN           NaN        NaN                 NaN              NaN         NaN                  NaN                   NaN               NaN              NaN                   NaN                      NaN         NaN          NaN         NaN          NaN          NaN           NaN          NaN           NaT                                   NaN         NaN              NaN       NaN                     NaN           NaN                      NaN              NaN                  NaN           NaN                      NaN             NaN           NaN             NaN        NaT                  NaN                NaN        NaN                NaN       NaN           NaN             NaN          NaN     NaN                NaN                NaN           NaN             NaN                  NaN              NaN             NaN        NaN             NaN                                                                                                                                                                                                              NaN                                       NaN              NaN                                                                                NaN                         NaT            NaN                                   NaN            NaN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  NaN                   NaN                   NaT                     NaN                     NaT           NaN              NaN       NaN       NaN         NaN           NaN            NaN              NaN                 NaN                    NaN             NaN       NaN           NaN               NaN           NaN       NaN           NaN               NaN           NaN                  NaN            NaN           NaN                    NaN               NaN          NaN                   NaN           NaN     NaN            NaN        NaN           NaN            NaN                    NaN             NaN                                         NaN                      NaN      NaN             NaN           NaN        NaN     NaN    NaN         NaN          NaN            NaN         NaT         NaT              NaT             NaT       NaN                 NaT                 NaT            NaN         NaN      NaN     NaN                       NaN                      NaN                       NaN              NaN              NaN             NaN                NaN     Colorado         NaN
+2                                        NaN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            NaN         NaN            NaN                  NaN                NaN            NaN             NaN           NaN             NaN         NaN         NaN           NaN                  NaN                                   NaN                 NaN                    NaN          NaN          NaN             NaN            NaN         NaN            NaN         NaN                      NaN             NaN                                  NaN                NaN         NaN                  NaN         NaN          NaN            NaN                   NaN                       NaN                    NaN               NaN                      NaN                      NaN           NaN        NaN                 NaN              NaN         NaN                  NaN                   NaN               NaN              NaN                   NaN                      NaN         NaN          NaN         NaN          NaN          NaN           NaN          NaN           NaT                                   NaN         NaN              NaN       NaN                     NaN           NaN                      NaN              NaN                  NaN           NaN                      NaN             NaN           NaN             NaN        NaT                  NaN                NaN        NaN                NaN       NaN           NaN             NaN          NaN     NaN                NaN                NaN           NaN             NaN                  NaN              NaN             NaN        NaN             NaN                                                                                                                                                                                                              NaN                                       NaN              NaN                                                                                NaN                         NaT            NaN                                   NaN            NaN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  NaN                   NaN                   NaT                     NaN                     NaT           NaN              NaN       NaN       NaN         NaN           NaN            NaN              NaN                 NaN                    NaN             NaN       NaN           NaN               NaN           NaN       NaN           NaN               NaN           NaN                  NaN            NaN           NaN                    NaN               NaN          NaN                   NaN           NaN     NaN            NaN        NaN           NaN            NaN                    NaN             NaN                                         NaN                      NaN      NaN             NaN           NaN        NaN     NaN    NaN         NaN          NaN            NaN         NaT         NaT              NaT             NaT       NaN                 NaT                 NaT            NaN         NaN      NaN     NaN                       NaN                      NaN                       NaN              NaN              NaN             NaN                NaN     Colorado         NaN
+
+Data Types:
+box_serial_numbers_scanned_delivered_json    float64
+box_serial_numbers_scanned_received_json      object
+_kf_city_id                                   object
+_kf_city_id_2                                float64
+_kf_client_class_id                          float64
+                                              ...   
+PDF::page_count                              float64
+PDF::task_type                               float64
+PEP2::clipboard_g                            float64
+PEP2::market                                  object
+TASKS::type                                   object
+Length: 169, dtype: object

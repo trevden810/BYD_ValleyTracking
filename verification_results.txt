@@ -1,0 +1,31 @@
+Loading byd_fieldtest.xlsx...
+✅ File loaded successfully.
+Total Records: 64
+Total Columns: 13
+
+--- Field Verification ---
+✅ _kp_job_id: Found (64 non-empty records)
+   Sample: 928576...
+✅ _kf_client_code_id: Found (64 non-empty records)
+   Sample: BYDw...
+✅ job_date: Found (64 non-empty records)
+   Sample: 2026-02-16...
+✅ job_status: Found (63 non-empty records)
+   Sample: Canceled...
+✅ time_complete: Found (2 non-empty records)
+   Sample: 0 days 09:34:00...
+✅ description_product: Found (58 non-empty records)
+   Sample: CARPORT - KINGSPORT 20x12 - DS BOX 1...
+✅ product_serial_number: Found (63 non-empty records)
+   Sample: 6302168...
+✅ box_serial_numbers_scanned_received_json: Found (58 non-empty records)
+   Sample: {
+	"6302168" : 
+	{
+		"latitude" : "",
+		"longitude" : "",
+		"manual" : 0,
+		"timestamp" : "2/11/2026...
+   ✅ Valid JSON structure detected.
+
+✅ All required fields are present.

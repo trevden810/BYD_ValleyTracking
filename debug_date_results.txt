@@ -1,0 +1,17 @@
+Pandas Version: 2.3.3
+
+Fetching jobs...
+DataFrame Created.
+job_date dtype: object
+job_date sample: ['02/20/2026']
+time_complete dtype: object
+time_complete sample: ['']
+
+--- Inspecting Job Index 14 ---
+Raw job_date: '02/16/2026' (type=<class 'str'>)
+Raw time_complete: '' (type=<class 'str'>)
+Str job_date: '02/16/2026'
+Str time_complete: ''
+Combined: '02/16/2026 '
+Parsed Result (errors='coerce'): 2026-02-16 00:00:00
+Parsed Result (no coerce): 2026-02-16 00:00:00
