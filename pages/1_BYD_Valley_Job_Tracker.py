@@ -114,13 +114,15 @@ with tab1:
     st.subheader(f"Job List ({len(df_filtered)})")
     
     # Search box
-    search_term = st.text_input("🔍 Search Job ID, Notes, or Assigned Driver", "")
+    col_search, col_filter = st.columns([3, 1])
+    with col_search:
+        search_term = st.text_input("🔍 Search Job ID, Notes, or Assigned Driver", "")
+    with col_filter:
+        show_unscanned = st.checkbox("⚠️ Unscanned Only")
     
-    # Filter Logic (Applying Search)
+    # Filter Logic (Applying Search & Checkbox)
     if search_term:
         search_term = search_term.lower()
-        # Ensure regex chars are escaped or handle error, but contains is safe for basic text
-        # Using boolean indexing for speed
         mask = (
             df_filtered['Job_ID'].str.lower().str.contains(search_term, na=False) |
             df_filtered['Customer_Notes'].str.lower().str.contains(search_term, na=False) |
@@ -128,19 +130,52 @@ with tab1:
             df_filtered['Product_Name'].str.lower().str.contains(search_term, na=False) |
             df_filtered['Product_Serial'].str.lower().str.contains(search_term, na=False)
         )
-        df_display = df_filtered[mask].copy()
-    else:
-        df_display = df_filtered.copy()
+        df_filtered = df_filtered[mask]
+        
+    # Apply "Unscanned Routed" Filter
+    # Definition: Routed (Driver Assigned) AND Scan_Count == 0 (or Last_Scan_User empty)
+    # We must ensure 'Last_Scan_User' exists.
+    if show_unscanned:
+        if 'Last_Scan_User' in df_filtered.columns and 'Assigned_Driver' in df_filtered.columns:
+            # Check for routed
+            is_routed = df_filtered['Assigned_Driver'].str.strip().str.lower().replace('nan', '') != ''
+            # Check for NO scan
+            no_scan = (df_filtered['Last_Scan_User'].isna()) | (df_filtered['Last_Scan_User'] == '')
+            
+            df_filtered = df_filtered[is_routed & no_scan]
+        else:
+            st.warning("Cannot filter: Missing scan/driver columns.")
 
-    # Visual Status Logic
+    # Display Logic
+    df_display = df_filtered.copy()
+
+    # 1. Map Status to Visual Categories (and Emoji for simple visual)
     def get_status_emoji(row):
         status = str(row.get('Status', '')).lower()
-        if status in ['delivered', 'complete', 'completed']: return "🟢 Complete"
-        if row.get('Delay_Days', 0) > 0 and status not in ['delivered', 'complete', 'completed']: return "🔴 Delayed"
-        if pd.notna(row.get('Actual_Date')) and status not in ['delivered', 'complete', 'completed']: return "🔵 In Progress"
         driver = str(row.get('Assigned_Driver', '')).strip()
-        if driver and driver.lower() != 'nan' and driver.lower() != 'none' and driver.lower() != '': return "🟡 Routed"
+        last_scan = str(row.get('Last_Scan_User', '')).strip()
+        is_routed = driver and driver.lower() != 'nan' and driver.lower() != 'none' and driver.lower() != ''
+        has_scan = last_scan and last_scan.lower() != 'nan' and last_scan.lower() != ''
+        
+        # Critical Flag: Routed but NOT Scanned
+        if is_routed and not has_scan and status not in ['delivered', 'complete', 'completed']:
+            return "⚠️ Unscanned"
+            
+        # Completed
+        if status in ['delivered', 'complete', 'completed']: return "🟢 Complete"
+        
+        # Issues
+        if row.get('Delay_Days', 0) > 0 and status not in ['delivered', 'complete', 'completed']: return "🔴 Delayed"
+        
+        # In Progress (Arrived at Dock)
+        if pd.notna(row.get('Actual_Date')) and status not in ['delivered', 'complete', 'completed']: return "🔵 In Progress"
+
+        # Routed (Driver Assigned but not Arrived/Complete)
+        if is_routed: return "🟡 Routed"
+            
+        # Planned
         if status in ['created', 'manifested', 'planned', 'unknown', '']: return "⚪ Scheduled"
+            
         return "⚪ Unknown"
 
     df_display['Visual_Status'] = df_display.apply(get_status_emoji, axis=1)
@@ -186,6 +221,21 @@ with tab1:
 
 with tab2:
     st.header("📊 Operational Insights")
+    
+    # --- TOP LEVEL METRICS ---
+    # Calculate Routed but Unscanned
+    # Definition: Assigned Driver + No Scan User + Not Complete
+    if 'Assigned_Driver' in df_filtered.columns and 'Last_Scan_User' in df_filtered.columns:
+        routed = df_filtered['Assigned_Driver'].str.strip().str.lower().replace('nan', '') != ''
+        not_scanned = (df_filtered['Last_Scan_User'].isna()) | (df_filtered['Last_Scan_User'] == '')
+        not_complete = ~df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed'])
+        
+        unscanned_count = len(df_filtered[routed & not_scanned & not_complete])
+    else:
+        unscanned_count = 0
+        
+    m1, m2, m3 = st.columns(3)
+    m1.metric("⚠️ Routed / Not Scanned", f"{unscanned_count}", help="Jobs assigned to a driver but missing a scan record.")
     
     col1, col2 = st.columns(2)
     
