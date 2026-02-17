@@ -57,6 +57,9 @@ def render_sidebar(df):
     # 4. Carrier
     carrier_options = df['Carrier'].unique().tolist() if 'Carrier' in df.columns else []
     selected_carriers = st.sidebar.multiselect("Carrier", carrier_options, default=carrier_options)
+    
+    # 5. White Glove Filter
+    show_white_glove_only = st.sidebar.checkbox("⭐ White Glove Only", value=False) if 'White_Glove' in df.columns else False
 
     # --- Apply Filters ---
     df_filtered = df.copy()
@@ -80,5 +83,9 @@ def render_sidebar(df):
     # Carrier
     if selected_carriers and 'Carrier' in df_filtered.columns:
         df_filtered = df_filtered[df_filtered['Carrier'].isin(selected_carriers)]
+    
+    # White Glove
+    if show_white_glove_only and 'White_Glove' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['White_Glove'] == True]
         
     return df_filtered

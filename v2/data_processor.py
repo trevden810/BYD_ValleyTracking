@@ -203,6 +203,35 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
         processed['Scan_User'] = ''
         processed['Scan_Timestamp'] = pd.NaT
 
+    # === NEW FIELDS (Feb 2026 Export Update) === #
+    
+    # 11. Piece Count
+    if 'piece_total' in processed.columns:
+        processed['Piece_Count'] = pd.to_numeric(processed['piece_total'], errors='coerce').fillna(0).astype(int)
+    else:
+        processed['Piece_Count'] = 0
+    
+    # 12. White Glove Service
+    if 'white_glove' in processed.columns:
+        # Convert to boolean - handle various formats (1/0, Yes/No, True/False)
+        processed['White_Glove'] = processed['white_glove'].apply(
+            lambda x: str(x).strip().lower() in ['1', 'yes', 'true', 'y'] if pd.notna(x) else False
+        )
+    else:
+        processed['White_Glove'] = False
+    
+    # 13. Notification Detail
+    if 'notification_detail' in processed.columns:
+        processed['Notification_Detail'] = processed['notification_detail'].astype(str).replace('nan', '')
+    else:
+        processed['Notification_Detail'] = ''
+    
+    # 14. Miles (Distance from warehouse to delivery)
+    if '_kf_miles_oneway_id' in processed.columns:
+        processed['Miles_OneWay'] = pd.to_numeric(processed['_kf_miles_oneway_id'], errors='coerce').fillna(0).round(1)
+    else:
+        processed['Miles_OneWay'] = 0.0
+
     return processed
 
 

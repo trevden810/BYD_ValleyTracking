@@ -193,12 +193,15 @@ with tab1:
         'Stop_Number': 'Stop #',
         'Product_Name': 'Product',
         'Product_Serial': 'Serial #',
+        'Piece_Count': 'Pieces',
         'Carrier': 'Carrier',
+        'State': 'State',
+        'Miles_OneWay': 'Miles',
+        'White_Glove': 'White Glove',
         'Planned_Date': 'Planned',
         'Actual_Date': 'Actual Arrival',
         'Delay_Days': 'Delay (Days)',
         'Last_Scan_User': 'Scanned By',
-        'State': 'State',
         'Assigned_Driver': 'Driver',
         'Customer_Notes': 'Notes'
     }

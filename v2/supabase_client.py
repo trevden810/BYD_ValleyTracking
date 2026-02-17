@@ -58,7 +58,11 @@ class SupabaseClient:
                 'state': str(row.get('State', '')),
                 'scan_user': str(row.get('Scan_User', '')),
                 'scan_timestamp': row.get('Scan_Timestamp').isoformat() if pd.notna(row.get('Scan_Timestamp')) else None,
-                'product_description': str(row.get('Product_Description', ''))
+                'product_description': str(row.get('Product_Description', '')),
+                'piece_count': int(row.get('Piece_Count', 0)),
+                'white_glove': bool(row.get('White_Glove', False)),
+                'notification_detail': str(row.get('Notification_Detail', '')),
+                'miles_oneway': float(row.get('Miles_OneWay', 0.0))
             }
             records.append(record)
         
@@ -220,10 +224,13 @@ class SupabaseClient:
                     'status': 'Status',
                     'carrier': 'Carrier',
                     'state': 'State',
-                    'scan_user': 'Last_Scan_User', # Map scan_user back to Last_Scan_User
+                    'scan_user': 'Last_Scan_User',
                     'scan_timestamp': 'Scan_Timestamp',
-                    'product_description': 'Product_Name' # Assuming mapping
-                    # Add others if strictly required
+                    'product_description': 'Product_Name',
+                    'piece_count': 'Piece_Count',
+                    'white_glove': 'White_Glove',
+                    'notification_detail': 'Notification_Detail',
+                    'miles_oneway': 'Miles_OneWay'
                 }
                 
                 df = df.rename(columns=column_map)
