@@ -198,7 +198,7 @@ with tab1:
         'Actual_Date': 'Actual Arrival',
         'Delay_Days': 'Delay (Days)',
         'Last_Scan_User': 'Scanned By',
-        'Market': 'Market',
+        'State': 'State',
         'Assigned_Driver': 'Driver',
         'Customer_Notes': 'Notes'
     }

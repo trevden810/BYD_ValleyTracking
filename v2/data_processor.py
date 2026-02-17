@@ -133,16 +133,16 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
     else:
         processed['Stop_Number'] = ''
 
-    # 4. Status, Market, Carrier
+    # 4. Status, State, Carrier
     if 'job_status' in processed.columns:
         processed['Status'] = processed['job_status'].astype(str)
     else:
         processed['Status'] = 'Unknown'
 
-    if 'location_load' in processed.columns:
-        processed['Market'] = processed['location_load'].astype(str)
+    if '_kf_state_id' in processed.columns:
+        processed['State'] = processed['_kf_state_id'].astype(str).replace('nan', 'Unknown')
     else:
-        processed['Market'] = 'Unknown'
+        processed['State'] = 'Unknown'
 
     if '_kf_client_code_id' in processed.columns:
         processed['Carrier'] = processed['_kf_client_code_id'].astype(str)

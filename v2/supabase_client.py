@@ -55,7 +55,7 @@ class SupabaseClient:
                 'delay_days': float(row.get('Delay_Days')) if pd.notna(row.get('Delay_Days')) else None,
                 'status': str(row.get('Status', '')),
                 'carrier': str(row.get('Carrier', '')),
-                'market': str(row.get('Market', '')),
+                'state': str(row.get('State', '')),
                 'scan_user': str(row.get('Scan_User', '')),
                 'scan_timestamp': row.get('Scan_Timestamp').isoformat() if pd.notna(row.get('Scan_Timestamp')) else None,
                 'product_description': str(row.get('Product_Description', ''))
@@ -219,7 +219,7 @@ class SupabaseClient:
                     'delay_days': 'Delay_Days',
                     'status': 'Status',
                     'carrier': 'Carrier',
-                    'market': 'Market',
+                    'state': 'State',
                     'scan_user': 'Last_Scan_User', # Map scan_user back to Last_Scan_User
                     'scan_timestamp': 'Scan_Timestamp',
                     'product_description': 'Product_Name' # Assuming mapping

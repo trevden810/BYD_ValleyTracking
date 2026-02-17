@@ -46,9 +46,9 @@ def render_sidebar(df):
     else:
         date_range = None
 
-    # 2. Market
-    market_options = df['Market'].unique().tolist() if 'Market' in df.columns else []
-    selected_markets = st.sidebar.multiselect("Market", market_options, default=market_options)
+    # 2. State
+    state_options = df['State'].unique().tolist() if 'State' in df.columns else []
+    selected_states = st.sidebar.multiselect("State", state_options, default=state_options)
 
     # 3. Status
     status_options = df['Status'].unique().tolist() if 'Status' in df.columns else []
@@ -69,9 +69,9 @@ def render_sidebar(df):
             (df_filtered['Planned_Date'].dt.date <= e)
         ]
 
-    # Market
-    if selected_markets:
-        df_filtered = df_filtered[df_filtered['Market'].isin(selected_markets)]
+    # State
+    if selected_states:
+        df_filtered = df_filtered[df_filtered['State'].isin(selected_states)]
 
     # Status
     if selected_statuses:
