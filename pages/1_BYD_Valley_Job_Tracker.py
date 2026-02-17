@@ -80,7 +80,7 @@ if not pending_arrivals.empty:
     watchlist_df = pending_arrivals.copy()
     watchlist_df['Days_Overdue'] = (pd.to_datetime(today) - watchlist_df['Planned_Date'].dt.normalize()).dt.days
     
-    wl_cols = ['Job_ID', 'Stop_Number', 'Carrier', 'Planned_Date', 'Days_Overdue', 'Market']
+    wl_cols = ['Job_ID', 'Stop_Number', 'Carrier', 'Planned_Date', 'Days_Overdue', 'State']
     wl_cols = [c for c in wl_cols if c in watchlist_df.columns]
     
     st.dataframe(
