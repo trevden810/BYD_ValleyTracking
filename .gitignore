@@ -46,7 +46,7 @@ cover/
 *.xlsx
 ~$*.xlsx
 scanfieldtest.xlsx
-bydhistorical.xlsx
+# bydhistorical.xlsx (Un-ignored for Streamlit Cloud)
 BYD_Valley_Export.xlsx
 temp_report_preview.html
 keys.txt
