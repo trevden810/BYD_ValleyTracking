@@ -3,315 +3,341 @@ import pandas as pd
 import os
 from datetime import datetime
 from utils.api import get_token, fetch_jobs, process_data, fetch_jobs_from_excel
-from utils.ui import render_sidebar
-from v2.supabase_client import SupabaseClient # Import Supabase Client
+from v2.supabase_client import SupabaseClient 
 
-# Page config
+# --- CONFIGURATION & STYLING ---
 st.set_page_config(page_title="BYD/Valley Job Tracker", page_icon="🚚", layout="wide")
 
-st.title("🚚 BYD/Valley Job Tracker")
+def load_css(file_name):
+    if os.path.exists(file_name):
+        with open(file_name) as f:
+            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    else:
+        # Fallback or simple warning (optional)
+        pass
 
-# Sidebar - Snapshot Selection
-st.sidebar.header("📅 Data Source")
+load_css("assets/style.css")
+
+# --- HEADER (Tier 0) ---
+col_header_1, col_header_2 = st.columns([2, 3])
+with col_header_1:
+     st.markdown("""
+        <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0;">
+            <div style="background-color: #3B82F6; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.4);">V</div>
+            <div>
+                <h3 style="margin: 0; color: #E2E8F0; font-size: 1.1rem; line-height: 1.2;">Inbound Logistics</h3>
+                <div style="color: #94A3B8; font-size: 0.8rem; font-weight: 400;">Dock Operations Dashboard</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# --- DATA LOADING ---
 today = datetime.now().date()
-selected_date = st.sidebar.date_input("Snapshot Date", value=today, max_value=today)
 
-# Authentication & Data Loading
 @st.cache_data(ttl=900)
 def load_data(target_date):
-    # If today, use local file (Real-time/Latest)
+    # Logic to load data (similar to original)
     if target_date == datetime.now().date():
         file_path = "bydhistorical.xlsx"
         if not os.path.exists(file_path):
-            st.error(f"Data file not found: {file_path}")
             return pd.DataFrame()
-        
-        raw_data = fetch_jobs_from_excel(file_path)
-        df = process_data(raw_data)
-        return df
-    
-    # If past date, fetch from Supabase
+        try:
+            raw_data = fetch_jobs_from_excel(file_path)
+            df = process_data(raw_data)
+            return df
+        except Exception as e:
+            st.error(f"Error reading local file: {e}")
+            return pd.DataFrame()
     else:
         try:
             client = SupabaseClient()
             df = client.get_snapshot_by_date(target_date)
-            if df is None or df.empty:
-               return pd.DataFrame()
-            return df
-        except Exception as e:
-            st.error(f"Error fetching historical data: {e}")
+            return df if df is not None and not df.empty else pd.DataFrame()
+        except Exception:
             return pd.DataFrame()
 
-if selected_date == today:
-    spinner_msg = 'Loading latest job data...'
-else:
-    spinner_msg = f'Loading historical data for {selected_date}...'
-
-with st.spinner(spinner_msg):
-    df_main = load_data(selected_date)
+# Default to today
+selected_date = today 
+df_main = load_data(selected_date)
 
 if df_main.empty:
-    st.warning("No data found.")
+    st.warning("Data source not found (bydhistorical.xlsx) or empty.")
     st.stop()
 
-# Render Sidebar filters and get filtered dataframe
-df_filtered = render_sidebar(df_main)
-
-# --- Action Required Sections ---
-
-# 1. Overdue Arrivals (Watchlist)
-today = datetime.now().date()
-pending_arrivals = df_filtered[
-    (df_filtered['Planned_Date'].dt.date < today) & 
-    (df_filtered['Actual_Date'].isna())
-]
-
-# 2. Ready for Routing
-ready_for_routing = df_filtered[
-    (df_filtered['Actual_Date'].notna()) & 
-    (df_filtered['Is_Routed'] == False) 
-]
-
-# Display Overdue Arrivals if any
-if not pending_arrivals.empty:
-    st.subheader("⚠️ Overdue Arrivals (Watchlist)")
-    st.caption("Jobs that were planned to arrive but have not yet been scanned at the dock.")
+# --- TIER 4: FILTER UX (Global Filters) ---
+# Replacing Sidebar with Top Filter Bar
+with st.container():
+    # We use a container with a custom class/style if needed, but standard columns work well
+    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 1.5, 1.5, 1, 1])
     
-    watchlist_df = pending_arrivals.copy()
-    watchlist_df['Days_Overdue'] = (pd.to_datetime(today) - watchlist_df['Planned_Date'].dt.normalize()).dt.days
+    with f_col1:
+        search_term = st.text_input("🔍 Search", placeholder="Job ID, BOL, or Product...", label_visibility="collapsed")
     
-    wl_cols = ['Job_ID', 'Stop_Number', 'Carrier', 'Planned_Date', 'Days_Overdue', 'State']
-    wl_cols = [c for c in wl_cols if c in watchlist_df.columns]
-    
-    st.dataframe(
-        watchlist_df[wl_cols].sort_values('Days_Overdue', ascending=False).style.format({'Planned_Date': '{:%Y-%m-%d}'}),
-        use_container_width=True,
-        hide_index=True
+    with f_col2:
+        # Carrier
+        carriers = ["All Carriers"] + sorted(df_main['Carrier'].dropna().unique().tolist()) if 'Carrier' in df_main.columns else ["All Carriers"]
+        selected_carrier = st.selectbox("Carrier", carriers, label_visibility="collapsed")
+        
+    with f_col3:
+        # State
+        states = ["All States"] + sorted(df_main['State'].dropna().unique().tolist()) if 'State' in df_main.columns else ["All States"]
+        selected_state = st.selectbox("State", states, label_visibility="collapsed")
+        
+    with f_col4:
+        show_white_glove = st.checkbox("White Glove", value=False)
+        
+    with f_col5:
+        # "Unscanned" Toggle -> "Action Req"
+        show_unscanned_only = st.checkbox("Action Req", value=False)
+
+st.markdown("<div style='margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);'></div>", unsafe_allow_html=True)
+
+# --- FILTER LOGIC ---
+df_filtered = df_main.copy()
+
+# 1. Search
+if search_term:
+    s = search_term.lower()
+    mask = (
+        df_filtered['Job_ID'].astype(str).str.lower().str.contains(s, na=False) |
+        df_filtered['Product_Name'].astype(str).str.lower().str.contains(s, na=False) |
+        df_filtered['Customer_Notes'].astype(str).str.lower().str.contains(s, na=False)
     )
-    st.divider()
+    df_filtered = df_filtered[mask]
 
-# Display Ready for Routing if any
-if not ready_for_routing.empty:
-    st.subheader("🚛 Ready for Routing")
-    st.caption("Jobs that have arrived at the dock but have not been assigned to a driver/Ops Manager.")
+# 2. Dropdowns
+if selected_carrier != "All Carriers":
+    df_filtered = df_filtered[df_filtered['Carrier'] == selected_carrier]
+
+if selected_state != "All States":
+    df_filtered = df_filtered[df_filtered['State'] == selected_state]
+
+# 3. Checkboxes
+if show_white_glove and 'White_Glove' in df_filtered.columns:
+    df_filtered = df_filtered[df_filtered['White_Glove'] == True]
+
+# Unscanned / Action Req Logic
+# Definition: Routed (Driver Assigned) AND Scan_Count == 0 (or Last_Scan_User empty)
+# Also includes "SLA Risk" (Arrival > Planned Date)
+if 'Last_Scan_User' in df_filtered.columns:
+    has_scan = (df_filtered['Last_Scan_User'].notna()) & (df_filtered['Last_Scan_User'] != '')
     
-    routing_cols = ['Job_ID', 'Stop_Number', 'Carrier', 'Actual_Date', 'Market', 'Status']
-    routing_cols = [c for c in routing_cols if c in ready_for_routing.columns]
+    # Calculate counters for header
+    scanned_count = len(df_filtered[has_scan])
+    total_count = len(df_filtered)
     
-    st.dataframe(
-        ready_for_routing[routing_cols].sort_values('Actual_Date', ascending=False).style.format({'Actual_Date': '{:%Y-%m-%d %H:%M}'}),
-        use_container_width=True,
-        hide_index=True
-    )
-    st.divider()
+    if show_unscanned_only:
+        # "Action Req" View: Show Unscanned OR Late
+        # But commonly just "Not Scanned"
+        df_filtered = df_filtered[~has_scan]
+
+# --- TIER 1: DOCK INTAKE HEALTH BAR ---
+# KPIs
+total_arrivals = len(df_main) # Baseline from full dataset (or filtered? usually filtered view context)
+# Let's use filtered context for "Page View" metrics, but maybe global for "Dock Health"
+# Prompt implies "Dock Intake Health Bar" is top level. Let's use df_main for "Health" context usually, 
+# but users might confuse if filters don't affect it. Let's stick to df_filtered for consistency with UI actions, 
+# OR provide global context if it's "Dock Health". Let's use df_filtered.
+
+current_view_count = len(df_filtered)
+
+# Calculate Health Metrics
+# 1. Scanned vs Unscanned
+if 'Last_Scan_User' in df_filtered.columns:
+    scanned_mask = (df_filtered['Last_Scan_User'].notna()) & (df_filtered['Last_Scan_User'] != '')
+    scanned_n = len(df_filtered[scanned_mask])
+    unscanned_n = current_view_count - scanned_n
+else:
+    scanned_n = 0
+    unscanned_n = current_view_count
+
+# 2. SLA At Risk 
+# (Planned Date < Today AND Not Scanned)
+sla_risk_n = 0
+if 'Planned_Date' in df_filtered.columns:
+    # Ensure datetime
+    safe_planned = pd.to_datetime(df_filtered['Planned_Date'], errors='coerce')
+    # Risk: Planned < Today (Overdue) AND Not Scanned
+    # Or just "Late to Dock Scan"
+    
+    # "Late to Dock Scan": Arrived? Or just Planned?
+    # Usually "SLA At Risk" means we are past planned date.
+    overdue_mask = (safe_planned.dt.date < today) & (~scanned_mask if 'Last_Scan_User' in df_filtered.columns else True)
+    sla_risk_n = len(df_filtered[overdue_mask])
+
+# 3. White Glove Pending
+wg_pending_n = 0
+if 'White_Glove' in df_filtered.columns:
+    wg_mask = (df_filtered['White_Glove'] == True) & (~scanned_mask if 'Last_Scan_User' in df_filtered.columns else True)
+    wg_pending_n = len(df_filtered[wg_mask])
 
 
-# --- Tabs for Views ---
-tab1, tab2 = st.tabs(["📋 Job List", "📊 Insights"])
+# Display Metrics with Custom HTML/CSS Cards for better visual
+# Streamlit metric is okay, but we want the "colored border" look.
+# We will use st.metric for simplicity and reliability but style them with CSS we added.
 
-with tab1:
-    # --- Main Table ---
-    st.subheader(f"Job List ({len(df_filtered)})")
+m1, m2, m3, m4, m5 = st.columns(5)
+m1.metric("Total In View", f"{current_view_count}", "Jobs")
+m2.metric("Scanned", f"{scanned_n}", f"{(scanned_n/current_view_count*100):.0f}%" if current_view_count else "0%")
+m3.metric("Unscanned", f"{unscanned_n}", "Action Req", delta_color="inverse")
+m4.metric("SLA Risk", f"{sla_risk_n}", "Critical", delta_color="inverse")
+m5.metric("White Glove", f"{wg_pending_n}", "Pending", delta_color="normal")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# --- TIER 2: EXCEPTION-FIRST WATCHLIST ---
+# "Priority-sorted exception panel"
+# Logic: Show items that are SLA At Risk OR White Glove Pending
+# Sort by: Late + White Glove first
+
+if sla_risk_n > 0 or wg_pending_n > 0:
+    st.markdown("### ⚠️ Exception Watchlist")
     
-    # Search box
-    col_search, col_filter = st.columns([3, 1])
-    with col_search:
-        search_term = st.text_input("🔍 Search Job ID, Notes, or Assigned Driver", "")
-    with col_filter:
-        show_unscanned = st.checkbox("⚠️ Unscanned Only")
+    # Filter for watchlist
+    # (Same masks as above)
+    watchlist_mask = overdue_mask | wg_mask
+    df_watchlist = df_filtered[watchlist_mask].copy()
     
-    # Filter Logic (Applying Search & Checkbox)
-    if search_term:
-        search_term = search_term.lower()
-        mask = (
-            df_filtered['Job_ID'].str.lower().str.contains(search_term, na=False) |
-            df_filtered['Customer_Notes'].str.lower().str.contains(search_term, na=False) |
-            df_filtered['Assigned_Driver'].str.lower().str.contains(search_term, na=False) |
-            df_filtered['Product_Name'].str.lower().str.contains(search_term, na=False) |
-            df_filtered['Product_Serial'].str.lower().str.contains(search_term, na=False)
+    if not df_watchlist.empty:
+        # Enrich for display
+        df_watchlist['Days_Overdue'] = (pd.to_datetime(today) - pd.to_datetime(df_watchlist['Planned_Date'], errors='coerce').dt.normalize()).dt.days
+        df_watchlist['Days_Overdue'] = df_watchlist['Days_Overdue'].fillna(0).astype(int)
+        
+        # Sort: Descending Days_Overdue, then White Glove
+        df_watchlist.sort_values(by=['Days_Overdue', 'White_Glove'], ascending=[False, False], inplace=True)
+        
+        # Columns
+        # Job ID, Product, Carrier, Planned, Days Late, White Glove
+        wl_cols = {
+            'Job_ID': 'Job ID',
+            'Product_Name': 'Product',
+            'Carrier': 'Carrier',
+            'Planned_Date': 'Planned',
+            'Days_Overdue': 'Days Late',
+            'White_Glove': 'White Glove',
+            'State': 'State'
+        }
+        
+        # Filter columns that exist
+        final_wl_cols = {k: v for k, v in wl_cols.items() if k in df_watchlist.columns}
+        
+        df_wl_display = df_watchlist[list(final_wl_cols.keys())].rename(columns=final_wl_cols)
+        
+        # Custom Styler
+        def highlight_watchlist(row):
+            styles = []
+            # Highlight White Glove
+            if 'White Glove' in row and row['White Glove']:
+                styles.append('background-color: rgba(59, 130, 246, 0.1); color: #60A5FA;')
+            # Highlight Late
+            elif 'Days Late' in row and row['Days Late'] > 0:
+                styles.append('background-color: rgba(239, 68, 68, 0.1); color: #F87171;')
+            else:
+                styles.append('')
+            return styles
+        
+        st.dataframe(
+            df_wl_display.style.format({'Planned': '{:%Y-%m-%d}'}), 
+            use_container_width=True,
+            hide_index=True
         )
-        df_filtered = df_filtered[mask]
+    st.divider()
+
+
+# --- TIER 3: INTAKE READINESS BOARD ---
+# "Intake Readiness Board" -> Kanban logic
+# Buckets:
+# 1. Not Scanned (Arrived but no Scan)
+# 2. Scanned / In Progress (Scanned, but not Completed/Delivered)
+# 3. Completed (Delivered)
+
+st.subheader("📋 Intake & Routing Board")
+
+if 'Actual_Date' in df_filtered.columns and 'Last_Scan_User' in df_filtered.columns:
+    # 1. Arrived (Actual_Date not NaT)
+    # 2. Scanned (Last_Scan_User not Empty)
+    
+    arrived_mask = df_filtered['Actual_Date'].notna()
+    scanned_mask = (df_filtered['Last_Scan_User'].notna()) & (df_filtered['Last_Scan_User'] != '')
+    
+    # Bucket 1: Arrived but NOT Scanned (Needs Intake)
+    # Also include Planned < Today (Late Arrival/Scan)
+    # Simplification: Just "Pending Scan" (Arrived but not scanned)
+    bucket_intake = df_filtered[arrived_mask & ~scanned_mask]
+    
+    # Bucket 2: Scanned (In Progress)
+    # Filter out "Delivered" or "Completed" status if we have a status column
+    if 'Status' in df_filtered.columns:
+        completed_mask = df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed'])
+    else:
+        completed_mask = False
         
-    # Apply "Unscanned Routed" Filter
-    # Definition: Routed (Driver Assigned) AND Scan_Count == 0 (or Last_Scan_User empty)
-    # We must ensure 'Last_Scan_User' exists.
-    if show_unscanned:
-        if 'Last_Scan_User' in df_filtered.columns and 'Assigned_Driver' in df_filtered.columns:
-            # Check for routed
-            is_routed = df_filtered['Assigned_Driver'].str.strip().str.lower().replace('nan', '') != ''
-            # Check for NO scan
-            no_scan = (df_filtered['Last_Scan_User'].isna()) | (df_filtered['Last_Scan_User'] == '')
+    bucket_progress = df_filtered[scanned_mask & ~completed_mask]
+    
+    # Layout
+    b_col1, b_col2 = st.columns(2)
+    
+    with b_col1:
+        st.markdown(f"**📥 Ready for Scan ({len(bucket_intake)})**")
+        st.caption("Arrived at dock. Action required.")
+        if not bucket_intake.empty:
+            cols_i = ['Job_ID', 'Carrier', 'Product_Name', 'Actual_Date']
+            # Limit to top 20 for board view to avoid lag
+            st.dataframe(bucket_intake[cols_i].head(50), use_container_width=True, hide_index=True)
             
-            df_filtered = df_filtered[is_routed & no_scan]
-        else:
-            st.warning("Cannot filter: Missing scan/driver columns.")
+    with b_col2:
+        st.markdown(f"**🚛 Routed / In Progress ({len(bucket_progress)})**")
+        st.caption("Scanned. Awaiting delivery.")
+        if not bucket_progress.empty:
+            cols_p = ['Job_ID', 'Assigned_Driver', 'Last_Scan_User', 'Status']
+            st.dataframe(bucket_progress[cols_p].head(50), use_container_width=True, hide_index=True)
 
-    # Display Logic
-    df_display = df_filtered.copy()
 
-    # 1. Map Status to Visual Categories (and Emoji for simple visual)
+st.divider()
+
+# --- MAIN LIST / SEARCH TABLE ---
+with st.expander("📝 Full Job List"):
+    # Show all columns (mapped)
+    # Visual Status mapping
+    
+    df_list = df_filtered.copy()
+    
+    # Helper for status emoji
     def get_status_emoji(row):
-        status = str(row.get('Status', '')).lower()
+        s = str(row.get('Status', '')).lower()
+        if s in ['delivered', 'complete', 'completed']: return "🟢 Complete"
+        if s in ['manifested', 'created']: return "⚪ Scheduled"
+        
+        # Logic for derived status
         driver = str(row.get('Assigned_Driver', '')).strip()
-        last_scan = str(row.get('Last_Scan_User', '')).strip()
-        is_routed = driver and driver.lower() != 'nan' and driver.lower() != 'none' and driver.lower() != ''
-        has_scan = last_scan and last_scan.lower() != 'nan' and last_scan.lower() != ''
+        scan = str(row.get('Last_Scan_User', '')).strip()
         
-        # Critical Flag: Routed but NOT Scanned
-        if is_routed and not has_scan and status not in ['delivered', 'complete', 'completed']:
-            return "⚠️ Unscanned"
+        if driver and driver != 'nan' and driver != 'None':
+            # Routed
+            if not scan or scan == 'nan':
+                 return "⚠️ Routed (No Scan)"
+            return "🟡 Routed"
             
-        # Completed
-        if status in ['delivered', 'complete', 'completed']: return "🟢 Complete"
-        
-        # Issues
-        if row.get('Delay_Days', 0) > 0 and status not in ['delivered', 'complete', 'completed']: return "🔴 Delayed"
-        
-        # In Progress (Arrived at Dock)
-        if pd.notna(row.get('Actual_Date')) and status not in ['delivered', 'complete', 'completed']: return "🔵 In Progress"
-
-        # Routed (Driver Assigned but not Arrived/Complete)
-        if is_routed: return "🟡 Routed"
+        if scan and scan != 'nan':
+            return "🔵 Scanned"
             
-        # Planned
-        if status in ['created', 'manifested', 'planned', 'unknown', '']: return "⚪ Scheduled"
-            
-        return "⚪ Unknown"
+        return "⚪ Planned"
 
-    df_display['Visual_Status'] = df_display.apply(get_status_emoji, axis=1)
-
-    # Format dates
-    if 'Planned_Date' in df_display.columns:
-        df_display['Planned_Date'] = df_display['Planned_Date'].dt.strftime('%Y-%m-%d')
-    if 'Actual_Date' in df_display.columns:
-        df_display['Actual_Date'] = df_display['Actual_Date'].dt.strftime('%Y-%m-%d %H:%M')
-
-    # Column Mapping
-    display_cols = {
+    df_list['Visual_Status'] = df_list.apply(get_status_emoji, axis=1)
+    
+    # Select cols
+    target_cols = {
         'Visual_Status': 'Status',
         'Job_ID': 'Job ID',
-        'Stop_Number': 'Stop #',
-        'Product_Name': 'Product',
-        'Product_Serial': 'Serial #',
-        'Piece_Count': 'Pieces',
         'Carrier': 'Carrier',
-        'State': 'State',
-        'Miles_OneWay': 'Miles',
-        'White_Glove': 'White Glove',
+        'Product_Name': 'Product',
         'Planned_Date': 'Planned',
         'Actual_Date': 'Actual Arrival',
-        'Delay_Days': 'Delay (Days)',
-        'Last_Scan_User': 'Scanned By',
         'Assigned_Driver': 'Driver',
-        'Customer_Notes': 'Notes'
+        'Last_Scan_User': 'Scanner'
     }
     
-    final_cols = [c for c in display_cols.keys() if c in df_display.columns]
-    df_view = df_display[final_cols].rename(columns=display_cols)
-
-    def style_status(val):
-        if "Complete" in val: return 'color: green; font-weight: bold'
-        elif "Delayed" in val: return 'color: red; font-weight: bold'
-        elif "In Progress" in val: return 'color: blue; font-weight: bold'
-        elif "Routed" in val: return 'color: #D4AF37; font-weight: bold'
-        else: return 'color: gray'
-
-    st.dataframe(
-        df_view.style.map(style_status, subset=['Status']),
-        use_container_width=True,
-        hide_index=True
-    )
-
-with tab2:
-    st.header("📊 Operational Insights")
+    final_list_cols = {k: v for k, v in target_cols.items() if k in df_list.columns}
+    df_list_view = df_list[list(final_list_cols.keys())].rename(columns=final_list_cols)
     
-    # --- TOP LEVEL METRICS ---
-    # Calculate Routed but Unscanned
-    # Definition: Assigned Driver + No Scan User + Not Complete
-    if 'Assigned_Driver' in df_filtered.columns and 'Last_Scan_User' in df_filtered.columns:
-        routed = df_filtered['Assigned_Driver'].str.strip().str.lower().replace('nan', '') != ''
-        not_scanned = (df_filtered['Last_Scan_User'].isna()) | (df_filtered['Last_Scan_User'] == '')
-        not_complete = ~df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed'])
-        
-        unscanned_count = len(df_filtered[routed & not_scanned & not_complete])
-    else:
-        unscanned_count = 0
-        
-    m1, m2, m3 = st.columns(3)
-    m1.metric("⚠️ Routed / Not Scanned", f"{unscanned_count}", help="Jobs assigned to a driver but missing a scan record.")
-    
-    col1, col2 = st.columns(2)
-    
-    # --- 1. BOTTLENECK ANALYSIS ---
-    with col1:
-        st.subheader("⏳ Bottleneck Detector")
-        st.caption("How long jobs sit in 'Ready for Routing' (Arrived but not Assigned)")
-        
-        # Filter for Arrived but NOT Routed and NOT Complete
-        # Assuming 'Is_Routed' exists and Actual_Date is present
-        bottleneck_df = df_filtered[
-            (df_filtered['Actual_Date'].notna()) & 
-            (df_filtered['Is_Routed'] == False) &
-            (~df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed']))
-        ].copy()
-        
-        if not bottleneck_df.empty:
-            # Calculate days waiting
-            # Use snapshot date (selected_date) or today for calculation
-            ref_date = pd.to_datetime(selected_date)
-            bottleneck_df['Days_Waiting'] = (ref_date - bottleneck_df['Actual_Date'].dt.normalize()).dt.days
-            
-            # Simple Bar Chart of Counts by Waiting Days
-            wait_counts = bottleneck_df['Days_Waiting'].value_counts().sort_index()
-            st.bar_chart(wait_counts)
-            
-            avg_wait = bottleneck_df['Days_Waiting'].mean()
-            st.metric("Avg Wait Time (Days)", f"{avg_wait:.1f} Days")
-        else:
-            st.info("No active bottlenecks found! (All arrived jobs are routed or completed)")
-
-    # --- 2. SCANNER LEADERBOARD ---
-    with col2:
-        st.subheader("🏆 Scanning Leaderboard")
-        st.caption("Top active scanners in current view")
-        
-        if 'Last_Scan_User' in df_filtered.columns:
-            # Filter empty users
-            scans = df_filtered[df_filtered['Last_Scan_User'] != '']['Last_Scan_User'].value_counts()
-            
-            if not scans.empty:
-                st.dataframe(scans, use_container_width=True)
-            else:
-                st.info("No scan data found in current selection.")
-        else:
-            st.warning("Last_Scan_User column missing.")
-
-    st.divider()
-
-    # --- 3. HISTORICAL TIMELINE ---
-    st.subheader("📈 Scan Compliance History (Last 30 Days)")
-    
-    # Fetch historical data explicitly for this chart
-    try:
-        # We need a client instance. If load_data used it, we can create one here safely.
-        # But we need to handle if secrets are missing (local vs cloud).
-        # We wrap in try block.
-        api_client = SupabaseClient()
-        history_df = api_client.get_historical_kpis(days=30)
-        
-        if history_df is not None and not history_df.empty:
-            # Create a simple line chart
-            # We want to show 'avg_scans_per_job' (Engagement) and 'total_jobs' (Volume)
-            
-            chart_data = history_df[['report_date', 'avg_scans_per_job', 'total_jobs']].set_index('report_date')
-            
-            # Use Altair or Streamlit native chart
-            # Streamlit native line_chart is easiest for quick win
-            st.line_chart(chart_data['avg_scans_per_job'])
-            st.caption("Average Scans Per Job Trend")
-            
-        else:
-            st.info("Not enough historical data collected yet (Started tracking today).")
-            
-    except Exception as e:
-        st.warning(f"Could not load history: {e}")
+    st.dataframe(df_list_view, use_container_width=True, hide_index=True)

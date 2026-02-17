@@ -1,0 +1,381 @@
+
+[     UTC     ] Logs for bydvalleytracking-gkxqskkgadfezsufxdupyt.streamlit.app/
+────────────────────────────────────────────────────────────────────────────────────────
+[22:03:54] 🚀 Starting up repository: 'byd_valleytracking', branch: 'main', main module: 'BYD_Valley_Job_Tracker.py'
+[22:03:54] 🐙 Cloning repository...
+[22:03:55] 🐙 Cloning into '/mount/src/byd_valleytracking'...
+
+[22:03:55] 🐙 Cloned repository!
+[22:03:55] 🐙 Pulling code changes from Github...
+[22:03:55] 📦 Processing dependencies...
+
+──────────────────────────────────────── uv ───────────────────────────────────────────
+
+Using uv pip install.
+Using Python 3.13.12 environment at /home/adminuser/venv
+Resolved 80 packages in 1.52s
+Prepared 80 packages in 4.00s
+Installed 80 packages in 173ms
+ + altair==6.0.0
+ + annotated-types==0.7.0
+ + anyio==4.12.1
+ + attrs==25.4.0
+ + blinker==1.9.0
+ + cachetools==6.2.6
+ + certifi==2026.1.4
+ + cffi==2.0.0
+ + charset-normalizer==3.4.4
+ + click==8.3.1
+ + [2026-02-17 22:04:01.639070] cryptography==46.0.5
+ + deprecation==2.1.0
+ + et-xmlfile==2.0.0
+ + fsspec==2026.2.0
+ + gitdb==4.0.12
+ + gitpython==3.1.46
+ + h11==0.16.0
+ + h2==4.3.0
+ + [2026-02-17 22:04:01.639317] hpack==4.1.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + hyperframe==6.1.0
+ + idna==3.11
+ + jinja2==3.1.3
+ + jsonschema==4.26.0
+ + jsonschema-specifications[2026-02-17 22:04:01.639508] ==2025.9.1
+ + kaleido==0.2.1
+ + markdown-it-py==4.0.0
+ + markupsafe==3.0.3
+ + mdurl==0.1.2
+ + mmh3==5.2.0
+ + multidict==6.7.1
+ + [2026-02-17 22:04:01.639709] narwhals==2.16.0
+ + numpy==2.4.2
+ + openpyxl==3.1.2
+ + packaging==26.0
+ + pandas==2.3.3
+ + pillow[2026-02-17 22:04:01.639896] ==12.1.1
+ + plotly==6.5.2
+ + postgrest==2.28.0
+ + propcache==0.4.1[2026-02-17 22:04:01.640100] 
+ + protobuf==6.33.5
+ + pyarrow==23.0.1
+ + pycparser==3.0
+ + pydantic==2.12.5
+ + pydantic-core==2.41.5
+ + pydeck==0.9.1
+ + pygments==2.19.2
+ + pyiceberg[2026-02-17 22:04:01.640808] ==0.11.0
+ + pyjwt==2.11.0
+ + pyparsing==3.3.2
+ + pyroaring==1.0.3
+ + python-dateutil==2.9.0.post0
+ + [2026-02-17 22:04:01.641073] python-dotenv==1.2.1
+ + pytz==2025.2
+ + realtime==2.28.0
+ + referencing==0.37.0
+ + requests==2.32.5
+ + rich[2026-02-17 22:04:01.641618] ==14.3.2
+ + rpds-py==0.30.0
+ + six==1.17.0
+ + smmap==5.0.2
+ + storage3==2.28.0
+ + streamlit==1.54.0
+ + strenum==0.4.15
+ + strictyaml==1.7.3
+ [2026-02-17 22:04:01.641933] + supabase==2.28.0
+ + supabase-auth==2.28.0
+ + supabase-functions==2.28.0
+ + tenacity==9.1.4
+ + toml==0.10.2
+ + [2026-02-17 22:04:01.642365] tornado==6.5.4
+ + typing-extensions==4.15.0
+ + typing-inspection==0.4.2
+ + tzdata==2025.3
+ + urllib3==2.6.3
+ + watchdog==6.0.0[2026-02-17 22:04:01.642942] 
+ + websockets==15.0.1
+ + yarl==1.22.0
+ + zstandard==0.25.0
+Checking if Streamlit is installed
+Found Streamlit version 1.54.0 in the environment
+Installing rich for an improved exception logging
+Using uv pip install.
+Using Python 3.13.12 environment at /home/adminuser/venv
+Audited 1 package in 5ms
+
+────────────────────────────────────────────────────────────────────────────────────────
+
+[22:04:05] 🐍 Python dependencies were installed from /mount/src/byd_valleytracking/requirements.txt using uv.
+Check if streamlit is installed
+Streamlit is already installed
+[22:04:06] 📦 Processed dependencies!
+
+
+
+/home/adminuser/venv/lib/python3.13/site-packages/openpyxl/styles/stylesheet.py:226: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+2026-02-17 22:04:28.628 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:04:28.664 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:04:43.416 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:04:43.440 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:04:45.301 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:04:45.346 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:05:28.236 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:05:28.254 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:18.694 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:18.719 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:29.173 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:29.196 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:35.287 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:35.328 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:39.373 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:54.795 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:08:54.829 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+/home/adminuser/venv/lib/python3.13/site-packages/openpyxl/styles/stylesheet.py:226: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+2026-02-17 22:09:24.770 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:09:27.136 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:09:27.170 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:09:32.060 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:09:32.099 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+[22:11:25] 🐙 Pulling code changes from Github...
+[22:11:25] 📦 Processing dependencies...
+[22:11:25] 📦 Processed dependencies!
+2026-02-17 22:11:26.069 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:11:26.103 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+[22:11:26] 🔄 Updated app!
+2026-02-17 22:12:34.109 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:12:34.146 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+[22:13:36] 🔌 Disconnecting...
+[22:13:41] 🖥 Provisioning machine...
+[22:13:40] 🚀 Starting up repository: 'byd_valleytracking', branch: 'main', main module: 'BYD_Valley_Job_Tracker.py'
+[22:13:40] 🐙 Cloning repository...
+[22:13:41] 🐙 Cloning into '/mount/src/byd_valleytracking'...
+
+[22:13:41] 🐙 Cloned repository!
+[22:13:41] 🐙 Pulling code changes from Github...
+[22:13:41] 📦 Processing dependencies...
+
+──────────────────────────────────────── uv ───────────────────────────────────────────
+
+Using uv pip install.
+Using Python 3.13.12 environment at /home/adminuser/venv
+[22:13:42] 🎛 Preparing system...
+[22:13:42] ⛓ Spinning up manager process...
+Resolved 80 packages in 1.19s
+Prepared [2026-02-17 22:13:49.084327] 80 packages[2026-02-17 22:13:49.084857]  [2026-02-17 22:13:49.085056] in 6.10s[2026-02-17 22:13:49.085337] 
+Installed [2026-02-17 22:13:49.408667] 80 packages in 321ms
+ + altair==6.0.0
+ + annotated-types==0.7.0
+ + anyio==4.12.1
+ + attrs==25.4.0
+ + blinker==1.9.0
+ + cachetools==6.2.6
+ + certifi==2026.1.4
+ + cffi==2.0.0
+ + charset-normalizer==3.4.4
+ + click==8.3.1
+ + cryptography==46.0.5
+ + deprecation==2.1.0[2026-02-17 22:13:49.409523] 
+ + et-xmlfile==2.0.0
+ + fsspec==2026.2.0
+ + gitdb==4.0.12
+ + gitpython==3.1.46
+ + h11==0.16.0
+ + h2==4.3.0
+ +[2026-02-17 22:13:49.409803]  hpack==4.1.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + hyperframe[2026-02-17 22:13:49.410094] ==6.1.0
+ + idna==3.11
+ + jinja2==3.1.3
+ + jsonschema==[2026-02-17 22:13:49.410387] 4.26.0
+ + jsonschema-specifications==2025.9.1
+ + kaleido==0.2.1
+ + markdown-it-py[2026-02-17 22:13:49.410721] ==4.0.0
+ + markupsafe==3.0.3
+ + mdurl==0.1.2
+ + mmh3==5.2.0
+ + multidict==6.7.1
+ + narwhals==[2026-02-17 22:13:49.411245] 2.16.0
+ + numpy==2.4.2
+ + openpyxl==3.1.2
+ + [2026-02-17 22:13:49.411489] packaging==26.0
+ + pandas==2.3.3
+ + pillow==12.1.1
+ [2026-02-17 22:13:49.411714] + plotly==6.5.2
+ + postgrest==2.28.0
+ + propcache==0.4.1[2026-02-17 22:13:49.412028] 
+ + protobuf==6.33.5
+ + pyarrow==23.0.1
+ +[2026-02-17 22:13:49.412438]  pycparser==3.0
+ + pydantic==2.12.5
+ + pydantic-core==2.41.5[2026-02-17 22:13:49.412795] 
+ + pydeck==0.9.1
+ + pygments==2.19.2
+ + [2026-02-17 22:13:49.413049] pyiceberg==0.11.0
+ + pyjwt==2.11.0
+ + pyparsing==3.3.2[2026-02-17 22:13:49.413447] 
+ + pyroaring==1.0.3
+ + python-dateutil==2.9.0.post0
+ + python-dotenv==1.2.1[2026-02-17 22:13:49.413689] 
+ + pytz==2025.2
+ + realtime==2.28.0
+ + [2026-02-17 22:13:49.413866] referencing==0.37.0
+ + requests==2.32.5
+ + rich==14.3.2[2026-02-17 22:13:49.414031] 
+ + rpds-py==0.30.0
+ + six==1.17.0
+ + smmap==[2026-02-17 22:13:49.414199] 5.0.2
+ + storage3==2.28.0
+ + streamlit==1.54.0
+ [2026-02-17 22:13:49.414443] + strenum==0.4.15
+ + strictyaml==1.7.3
+ + supabase==2.28.0[2026-02-17 22:13:49.414743] 
+ + supabase-auth==2.28.0
+ + supabase-functions==2.28.0
+ + tenacity[2026-02-17 22:13:49.414929] ==9.1.4
+ + toml==0.10.2
+ + tornado==6.5.4
+ + typing-extensions==[2026-02-17 22:13:49.415107] 4.15.0
+ + typing-inspection==0.4.2
+ + tzdata==2025.3
+ +[2026-02-17 22:13:49.415430]  urllib3==2.6.3
+ + watchdog==6.0.0
+ + websockets==15.0.1[2026-02-17 22:13:49.415720] 
+ + yarl==1.22.0
+ + zstandard==0.25.0
+Checking if Streamlit is installed
+Found Streamlit version 1.54.0 in the environment
+Installing rich for an improved exception logging
+Using uv pip install.
+Using Python 3.13.12 environment at /home/adminuser/venv
+Audited 1 package in 5ms
+
+────────────────────────────────────────────────────────────────────────────────────────
+
+[22:13:52] 🐍 Python dependencies were installed from /mount/src/byd_valleytracking/requirements.txt using uv.
+Check if streamlit is installed
+Streamlit is already installed
+[22:13:53] 📦 Processed dependencies!
+
+
+
+/home/adminuser/venv/lib/python3.13/site-packages/openpyxl/styles/stylesheet.py:226: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")
+2026-02-17 22:14:06.329 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-02-17 22:14:06.375 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+/home/adminuser/venv/lib/python3.13/site-packages/openpyxl/styles/stylesheet.py:226: UserWarning: Workbook contains no default style, apply openpyxl's default
+  warn("Workbook contains no default style, apply openpyxl's default")

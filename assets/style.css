@@ -1,0 +1,167 @@
+/* Global Dark Mode Theme */
+:root {
+    --bg-base: #0F1117;
+    --bg-panel: #161B22;
+    --bg-table: #1C2128;
+    --bg-hover: #232A33;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --text-primary: #E2E8F0;
+    --text-secondary: #94A3B8;
+    --text-muted: rgba(255, 255, 255, 0.45);
+    
+    /* Status Colors */
+    --status-scheduled: #3B82F6;
+    --status-attempted: #F59E0B;
+    --status-cancelled: #EF4444;
+    --status-rescheduled: #8B5CF6;
+    --status-unscanned: #F97316;
+    --status-ontime: #10B981;
+    --status-whiteglove: #3B82F6;
+}
+
+/* Base App Background */
+.stApp {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+}
+
+/* Header Styling */
+header[data-testid="stHeader"] {
+    background-color: transparent;
+}
+
+h1, h2, h3 {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+}
+
+/* Metric / KPI Cards (Tier 1) */
+div[data-testid="stMetric"] {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+div[data-testid="stMetricLabel"] {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+div[data-testid="stMetricValue"] {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Tables (Tier 2 & Lists) */
+.stDataFrame {
+    border: none !important;
+}
+
+div[data-testid="stDataFrame"] div[role="grid"] {
+    background-color: var(--bg-table);
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+}
+
+/* Header Cells */
+div[data-testid="stDataFrame"] div[role="columnheader"] {
+    background-color: var(--bg-panel) !important;
+    color: var(--text-secondary) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+/* Data Cells */
+div[data-testid="stDataFrame"] div[role="gridcell"] {
+    background-color: transparent !important;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--border-subtle);
+    height: 44px !important; /* Fixed row height request */
+    align-items: center;
+}
+
+/* Row Hover (approximate as streamlit doesn't expose tr directly always easily css-able without unique ids, but we try) */
+div[data-testid="stDataFrame"] div[role="row"]:hover div[role="gridcell"] {
+    background-color: var(--bg-hover) !important;
+}
+
+/* Expander (Filters - Tier 4) */
+.streamlit-expanderHeader {
+    background-color: var(--bg-panel);
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+}
+
+.streamlit-expanderContent {
+    background-color: var(--bg-panel);
+    border-radius: 0 0 8px 8px;
+    border-left: 1px solid var(--border-subtle);
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Custom Status Pills (HTML content) */
+.status-pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+/* Filter Chips */
+.filter-chip {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    padding: 4px 12px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-chip:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 24px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--status-scheduled) !important; /* Blue highlight */
+    border-bottom: 2px solid var(--status-scheduled) !important;
+}
