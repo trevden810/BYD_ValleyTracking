@@ -4,38 +4,51 @@ import os
 from datetime import datetime
 from utils.api import get_token, fetch_jobs, process_data, fetch_jobs_from_excel
 from utils.ui import render_sidebar
+from v2.supabase_client import SupabaseClient # Import Supabase Client
 
 # Page config
-st.set_page_config(page_title="Version 3.0", page_icon="✨", layout="wide")
+st.set_page_config(page_title="BYD/Valley Job Tracker", page_icon="🚚", layout="wide")
 
-st.title("✨ Version 3.0")
+st.title("🚚 BYD/Valley Job Tracker")
+
+# Sidebar - Snapshot Selection
+st.sidebar.header("📅 Data Source")
+today = datetime.now().date()
+selected_date = st.sidebar.date_input("Snapshot Date", value=today, max_value=today)
 
 # Authentication & Data Loading
 @st.cache_data(ttl=900)
-def load_data():
-    # Use local Excel file instead of API
-    file_path = "bydhistorical.xlsx"
-    if not os.path.exists(file_path):
-        st.error(f"Data file not found: {file_path}")
-        return pd.DataFrame()
+def load_data(target_date):
+    # If today, use local file (Real-time/Latest)
+    if target_date == datetime.now().date():
+        file_path = "bydhistorical.xlsx"
+        if not os.path.exists(file_path):
+            st.error(f"Data file not found: {file_path}")
+            return pd.DataFrame()
+        
+        raw_data = fetch_jobs_from_excel(file_path)
+        df = process_data(raw_data)
+        return df
     
-    # Use the new excel fetch function
-    # We import it inside or ensure it's imported at top
-    # But since we can't easily change imports with replace_file_content in one go if they are far apart,
-    # we'll assume we can fix imports or just use the function if available.
-    # Actually, let's just update the import line first or use full path if needed.
-    # Wait, I should check imports first.
-    # Let's just do the function body change here, and I'll update imports in a separate call if needed or include it.
-    
-    # Note: imports were: from utils.api import get_token, fetch_jobs, process_data
-    # I need to change that to include fetch_jobs_from_excel
-    
-    raw_data = fetch_jobs_from_excel(file_path)
-    df = process_data(raw_data)
-    return df
+    # If past date, fetch from Supabase
+    else:
+        try:
+            client = SupabaseClient()
+            df = client.get_snapshot_by_date(target_date)
+            if df is None or df.empty:
+               return pd.DataFrame()
+            return df
+        except Exception as e:
+            st.error(f"Error fetching historical data: {e}")
+            return pd.DataFrame()
 
-with st.spinner('Loading job data from Excel...'):
-    df_main = load_data()
+if selected_date == today:
+    spinner_msg = 'Loading latest job data...'
+else:
+    spinner_msg = f'Loading historical data for {selected_date}...'
+
+with st.spinner(spinner_msg):
+    df_main = load_data(selected_date)
 
 if df_main.empty:
     st.warning("No data found.")

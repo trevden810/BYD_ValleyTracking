@@ -162,6 +162,99 @@ class SupabaseClient:
         except Exception as e:
             print(f"❌ Error retrieving snapshot: {e}")
             return None
+
+    def get_snapshot_by_date(self, target_date: datetime.date) -> Optional[pd.DataFrame]:
+        """
+        Retrieves the snapshot for a specific date.
+        
+        Args:
+            target_date: The date to fetch data for.
+            
+        Returns:
+            DataFrame of the snapshot or None
+        """
+        try:
+            # Construct start and end timestamps for the target date
+            start_ts = datetime.combine(target_date, datetime.min.time()).isoformat()
+            end_ts = datetime.combine(target_date, datetime.max.time()).isoformat()
+            
+            # Fetch all records for this date range
+            # Utilizing pagination similar to get_latest_snapshot
+            
+            all_records = []
+            offset = 0
+            batch_size = 1000
+            
+            while True:
+                result = self.client.table('job_snapshots') \
+                    .select('*') \
+                    .gte('snapshot_date', start_ts) \
+                    .lte('snapshot_date', end_ts) \
+                    .range(offset, offset + batch_size - 1) \
+                    .execute()
+                
+                if not result.data:
+                    break
+                    
+                all_records.extend(result.data)
+                
+                if len(result.data) < batch_size:
+                    break
+                    
+                offset += batch_size
+            
+            if all_records:
+                df = pd.DataFrame(all_records)
+                
+                # Normalize column names to match local processing expected format if needed
+                # The DB columns are snake_case, but the app largely expects Title Case 
+                # based on process_data output.
+                # Let's map them back to what the app UI expects.
+                
+                # Map DB columns (snake_case) to App columns (Title Case / CamelCase)
+                column_map = {
+                    'job_id': 'Job_ID',
+                    'planned_date': 'Planned_Date',
+                    'actual_date': 'Actual_Date',
+                    'delay_days': 'Delay_Days',
+                    'status': 'Status',
+                    'carrier': 'Carrier',
+                    'market': 'Market',
+                    'scan_user': 'Last_Scan_User', # Map scan_user back to Last_Scan_User
+                    'scan_timestamp': 'Scan_Timestamp',
+                    'product_description': 'Product_Name' # Assuming mapping
+                    # Add others if strictly required
+                }
+                
+                df = df.rename(columns=column_map)
+                
+                # Ensure date columns are datetime objects
+                if 'Planned_Date' in df.columns:
+                    df['Planned_Date'] = pd.to_datetime(df['Planned_Date'])
+                if 'Actual_Date' in df.columns:
+                    df['Actual_Date'] = pd.to_datetime(df['Actual_Date'])
+                if 'Scan_Timestamp' in df.columns:
+                    df['Scan_Timestamp'] = pd.to_datetime(df['Scan_Timestamp'])
+                
+                # Ensure generic columns exist if missing (to avoid UI errors)
+                required_cols = ['Stop_Number', 'Product_Serial', 'Assigned_Driver', 'Customer_Notes', 'Is_Routed']
+                for col in required_cols:
+                    if col not in df.columns:
+                        df[col] = '' # Fill missing with empty string
+                        
+                # Handle Is_Routed specifically (boolean)
+                if 'Is_Routed' not in df.columns:
+                     df['Is_Routed'] = False
+
+                print(f"✓ Retrieved {len(df)} records for date {target_date}")
+                return df
+            else:
+                print(f"⚠ No snapshot found for {target_date}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error retrieving snapshot for date {target_date}: {e}")
+            return None
     
     def get_historical_kpis(self, days: int = 30) -> Optional[pd.DataFrame]:
         """
