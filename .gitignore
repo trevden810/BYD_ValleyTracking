@@ -43,10 +43,10 @@ cover/
 .vscode/
 
 # Project Specific
-*.xlsx
+# *.xlsx (Commented out to track bydhistorical.xlsx)
 ~$*.xlsx
 scanfieldtest.xlsx
-# bydhistorical.xlsx (Un-ignored for Streamlit Cloud)
+!bydhistorical.xlsx
 BYD_Valley_Export.xlsx
 temp_report_preview.html
 keys.txt
