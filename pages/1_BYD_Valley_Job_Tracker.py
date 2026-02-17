@@ -106,97 +106,159 @@ if not ready_for_routing.empty:
     st.divider()
 
 
-# --- Main Table ---
-st.subheader(f"Job List ({len(df_filtered)})")
+# --- Tabs for Views ---
+tab1, tab2 = st.tabs(["📋 Job List", "📊 Insights"])
 
-# Search box
-search_term = st.text_input("🔍 Search Job ID, Notes, or Assigned Driver", "")
-
-if search_term:
-    search_term = search_term.lower()
-    df_filtered = df_filtered[
-        df_filtered['Job_ID'].str.lower().str.contains(search_term, na=False) |
-        df_filtered['Customer_Notes'].str.lower().str.contains(search_term, na=False) |
-        df_filtered['Assigned_Driver'].str.lower().str.contains(search_term, na=False) |
-        df_filtered['Product_Name'].str.lower().str.contains(search_term, na=False) |
-        df_filtered['Product_Serial'].str.lower().str.contains(search_term, na=False)
-    ]
-
-# Display Logic
-df_display = df_filtered.copy()
-
-# 1. Map Status to Visual Categories (and Emoji for simple visual)
-def get_status_emoji(row):
-    status = str(row.get('Status', '')).lower()
+with tab1:
+    # --- Main Table ---
+    st.subheader(f"Job List ({len(df_filtered)})")
     
-    # Completed
-    if status in ['delivered', 'complete', 'completed']:
-        return "🟢 Complete"
+    # Search box
+    search_term = st.text_input("🔍 Search Job ID, Notes, or Assigned Driver", "")
     
-    # Issues
-    if row.get('Delay_Days', 0) > 0 and status not in ['delivered', 'complete', 'completed']:
-        return "🔴 Delayed"
-    
-    # In Progress (Arrived at Dock)
-    if pd.notna(row.get('Actual_Date')) and status not in ['delivered', 'complete', 'completed']:
-        return "🔵 In Progress"
-
-    # Routed (Driver Assigned but not Arrived/Complete)
-    # Check if Assigned_Driver column exists and has a value
-    driver = str(row.get('Assigned_Driver', '')).strip()
-    if driver and driver.lower() != 'nan' and driver.lower() != 'none' and driver.lower() != '':
-         return "🟡 Routed"
-        
-    # Planned
-    if status in ['created', 'manifested', 'planned', 'unknown', '']:
-        return "⚪ Scheduled"
-        
-    return "⚪ Unknown"
-
-df_display['Visual_Status'] = df_display.apply(get_status_emoji, axis=1)
-
-# Format dates for display
-if 'Planned_Date' in df_display.columns:
-    df_display['Planned_Date'] = df_display['Planned_Date'].dt.strftime('%Y-%m-%d')
-if 'Actual_Date' in df_display.columns:
-    df_display['Actual_Date'] = df_display['Actual_Date'].dt.strftime('%Y-%m-%d %H:%M')
-
-# Select and Rename Columns for View
-display_cols = {
-    'Visual_Status': 'Status',
-    'Job_ID': 'Job ID',
-    'Stop_Number': 'Stop #',
-    'Product_Name': 'Product',
-    'Product_Serial': 'Serial #',
-    'Carrier': 'Carrier',
-    'Planned_Date': 'Planned',
-    'Actual_Date': 'Actual Arrival',
-    'Delay_Days': 'Delay (Days)',
-    'Last_Scan_User': 'Scanned By',
-    'Market': 'Market',
-    'Assigned_Driver': 'Driver',
-    'Customer_Notes': 'Notes'
-}
-
-# Filter for available columns
-final_cols = [c for c in display_cols.keys() if c in df_display.columns]
-df_view = df_display[final_cols].rename(columns=display_cols)
-
-# Define color styling function for the whole row or specific columns
-def style_status(val):
-    if "Complete" in val:
-        return 'color: green; font-weight: bold'
-    elif "Delayed" in val:
-        return 'color: red; font-weight: bold'
-    elif "In Progress" in val:
-        return 'color: blue; font-weight: bold'
-    elif "Routed" in val:
-        return 'color: #D4AF37; font-weight: bold' # Gold/Dark Yellow
+    # Filter Logic (Applying Search)
+    if search_term:
+        search_term = search_term.lower()
+        # Ensure regex chars are escaped or handle error, but contains is safe for basic text
+        # Using boolean indexing for speed
+        mask = (
+            df_filtered['Job_ID'].str.lower().str.contains(search_term, na=False) |
+            df_filtered['Customer_Notes'].str.lower().str.contains(search_term, na=False) |
+            df_filtered['Assigned_Driver'].str.lower().str.contains(search_term, na=False) |
+            df_filtered['Product_Name'].str.lower().str.contains(search_term, na=False) |
+            df_filtered['Product_Serial'].str.lower().str.contains(search_term, na=False)
+        )
+        df_display = df_filtered[mask].copy()
     else:
-        return 'color: gray'
+        df_display = df_filtered.copy()
 
-st.dataframe(
-    df_view.style.map(style_status, subset=['Status']),
-    use_container_width=True,
-    hide_index=True
-)
+    # Visual Status Logic
+    def get_status_emoji(row):
+        status = str(row.get('Status', '')).lower()
+        if status in ['delivered', 'complete', 'completed']: return "🟢 Complete"
+        if row.get('Delay_Days', 0) > 0 and status not in ['delivered', 'complete', 'completed']: return "🔴 Delayed"
+        if pd.notna(row.get('Actual_Date')) and status not in ['delivered', 'complete', 'completed']: return "🔵 In Progress"
+        driver = str(row.get('Assigned_Driver', '')).strip()
+        if driver and driver.lower() != 'nan' and driver.lower() != 'none' and driver.lower() != '': return "🟡 Routed"
+        if status in ['created', 'manifested', 'planned', 'unknown', '']: return "⚪ Scheduled"
+        return "⚪ Unknown"
+
+    df_display['Visual_Status'] = df_display.apply(get_status_emoji, axis=1)
+
+    # Format dates
+    if 'Planned_Date' in df_display.columns:
+        df_display['Planned_Date'] = df_display['Planned_Date'].dt.strftime('%Y-%m-%d')
+    if 'Actual_Date' in df_display.columns:
+        df_display['Actual_Date'] = df_display['Actual_Date'].dt.strftime('%Y-%m-%d %H:%M')
+
+    # Column Mapping
+    display_cols = {
+        'Visual_Status': 'Status',
+        'Job_ID': 'Job ID',
+        'Stop_Number': 'Stop #',
+        'Product_Name': 'Product',
+        'Product_Serial': 'Serial #',
+        'Carrier': 'Carrier',
+        'Planned_Date': 'Planned',
+        'Actual_Date': 'Actual Arrival',
+        'Delay_Days': 'Delay (Days)',
+        'Last_Scan_User': 'Scanned By',
+        'Market': 'Market',
+        'Assigned_Driver': 'Driver',
+        'Customer_Notes': 'Notes'
+    }
+    
+    final_cols = [c for c in display_cols.keys() if c in df_display.columns]
+    df_view = df_display[final_cols].rename(columns=display_cols)
+
+    def style_status(val):
+        if "Complete" in val: return 'color: green; font-weight: bold'
+        elif "Delayed" in val: return 'color: red; font-weight: bold'
+        elif "In Progress" in val: return 'color: blue; font-weight: bold'
+        elif "Routed" in val: return 'color: #D4AF37; font-weight: bold'
+        else: return 'color: gray'
+
+    st.dataframe(
+        df_view.style.map(style_status, subset=['Status']),
+        use_container_width=True,
+        hide_index=True
+    )
+
+with tab2:
+    st.header("📊 Operational Insights")
+    
+    col1, col2 = st.columns(2)
+    
+    # --- 1. BOTTLENECK ANALYSIS ---
+    with col1:
+        st.subheader("⏳ Bottleneck Detector")
+        st.caption("How long jobs sit in 'Ready for Routing' (Arrived but not Assigned)")
+        
+        # Filter for Arrived but NOT Routed and NOT Complete
+        # Assuming 'Is_Routed' exists and Actual_Date is present
+        bottleneck_df = df_filtered[
+            (df_filtered['Actual_Date'].notna()) & 
+            (df_filtered['Is_Routed'] == False) &
+            (~df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed']))
+        ].copy()
+        
+        if not bottleneck_df.empty:
+            # Calculate days waiting
+            # Use snapshot date (selected_date) or today for calculation
+            ref_date = pd.to_datetime(selected_date)
+            bottleneck_df['Days_Waiting'] = (ref_date - bottleneck_df['Actual_Date'].dt.normalize()).dt.days
+            
+            # Simple Bar Chart of Counts by Waiting Days
+            wait_counts = bottleneck_df['Days_Waiting'].value_counts().sort_index()
+            st.bar_chart(wait_counts)
+            
+            avg_wait = bottleneck_df['Days_Waiting'].mean()
+            st.metric("Avg Wait Time (Days)", f"{avg_wait:.1f} Days")
+        else:
+            st.info("No active bottlenecks found! (All arrived jobs are routed or completed)")
+
+    # --- 2. SCANNER LEADERBOARD ---
+    with col2:
+        st.subheader("🏆 Scanning Leaderboard")
+        st.caption("Top active scanners in current view")
+        
+        if 'Last_Scan_User' in df_filtered.columns:
+            # Filter empty users
+            scans = df_filtered[df_filtered['Last_Scan_User'] != '']['Last_Scan_User'].value_counts()
+            
+            if not scans.empty:
+                st.dataframe(scans, use_container_width=True)
+            else:
+                st.info("No scan data found in current selection.")
+        else:
+            st.warning("Last_Scan_User column missing.")
+
+    st.divider()
+
+    # --- 3. HISTORICAL TIMELINE ---
+    st.subheader("📈 Scan Compliance History (Last 30 Days)")
+    
+    # Fetch historical data explicitly for this chart
+    try:
+        # We need a client instance. If load_data used it, we can create one here safely.
+        # But we need to handle if secrets are missing (local vs cloud).
+        # We wrap in try block.
+        api_client = SupabaseClient()
+        history_df = api_client.get_historical_kpis(days=30)
+        
+        if history_df is not None and not history_df.empty:
+            # Create a simple line chart
+            # We want to show 'avg_scans_per_job' (Engagement) and 'total_jobs' (Volume)
+            
+            chart_data = history_df[['report_date', 'avg_scans_per_job', 'total_jobs']].set_index('report_date')
+            
+            # Use Altair or Streamlit native chart
+            # Streamlit native line_chart is easiest for quick win
+            st.line_chart(chart_data['avg_scans_per_job'])
+            st.caption("Average Scans Per Job Trend")
+            
+        else:
+            st.info("Not enough historical data collected yet (Started tracking today).")
+            
+    except Exception as e:
+        st.warning(f"Could not load history: {e}")
