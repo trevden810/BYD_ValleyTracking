@@ -322,5 +322,40 @@ def process_data(jobs_data):
         df['Last_Scan_User'] = ''
         df['Last_Scan_Time'] = ''
         df['Total_Scans'] = 0
+    
+    # === NEW FIELDS (Feb 2026 Export Update) === #
+    
+    # State (replacing Market)
+    if '_kf_state_id' in df.columns:
+        df['State'] = df['_kf_state_id'].astype(str).replace('nan', '').replace('None', '')
+    else:
+        df['State'] = 'Unknown'
+    
+    # Piece Count
+    if 'piece_total' in df.columns:
+        df['Piece_Count'] = pd.to_numeric(df['piece_total'], errors='coerce').fillna(0).astype(int)
+    else:
+        df['Piece_Count'] = 0
+    
+    # White Glove Service
+    if 'white_glove' in df.columns:
+        # Convert to boolean - handle various formats (1/0, Yes/No, True/False)
+        df['White_Glove'] = df['white_glove'].apply(
+            lambda x: str(x).strip().lower() in ['1', 'yes', 'true', 'y'] if x and str(x).lower() != 'nan' else False
+        )
+    else:
+        df['White_Glove'] = False
+    
+    # Notification Detail
+    if 'notification_detail' in df.columns:
+        df['Notification_Detail'] = df['notification_detail'].astype(str).replace('nan', '').replace('None', '')
+    else:
+        df['Notification_Detail'] = ''
+    
+    # Miles (Distance from warehouse to delivery)
+    if '_kf_miles_oneway_id' in df.columns:
+        df['Miles_OneWay'] = pd.to_numeric(df['_kf_miles_oneway_id'], errors='coerce').fillna(0).round(1)
+    else:
+        df['Miles_OneWay'] = 0.0
 
     return df
