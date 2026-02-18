@@ -1,124 +1,261 @@
-/* Global Dark Mode Theme */
+/* ============================================================
+   PEPMOVE — Precision Equipment Placement
+   Dock Operations Dashboard — Brand Theme
+   Colors: Green #8DC63F | Charcoal #231F20 | Grey #808285
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
-    --bg-base: #0F1117;
-    --bg-panel: #161B22;
-    --bg-table: #1C2128;
-    --bg-hover: #232A33;
-    --border-subtle: rgba(255, 255, 255, 0.06);
-    --text-primary: #E2E8F0;
-    --text-secondary: #94A3B8;
-    --text-muted: rgba(255, 255, 255, 0.45);
-    
+    /* PEPMOVE Brand Palette */
+    --pep-green: #8DC63F;
+    --pep-green-dark: #6FA832;
+    --pep-green-glow: rgba(141, 198, 63, 0.18);
+    --pep-charcoal: #231F20;
+    --pep-grey: #808285;
+    --pep-grey-light: #D1D3D4;
+    --pep-white: #FFFFFF;
+
+    /* App Backgrounds */
+    --bg-base: #111214;
+    --bg-panel: #1A1C1F;
+    --bg-card: #1E2124;
+    --bg-hover: #252A2F;
+    --bg-sidebar: #161819;
+
+    /* Borders */
+    --border-subtle: rgba(255, 255, 255, 0.07);
+    --border-green: rgba(141, 198, 63, 0.35);
+
+    /* Text */
+    --text-primary: #F0F2F5;
+    --text-secondary: #9EA3A8;
+    --text-muted: rgba(255, 255, 255, 0.38);
+
     /* Status Colors */
-    --status-scheduled: #3B82F6;
-    --status-attempted: #F59E0B;
-    --status-cancelled: #EF4444;
-    --status-rescheduled: #8B5CF6;
-    --status-unscanned: #F97316;
-    --status-ontime: #10B981;
-    --status-whiteglove: #3B82F6;
+    --status-ok: #8DC63F;
+    /* PEPMOVE green = on-time/good */
+    --status-warn: #F59E0B;
+    --status-danger: #EF4444;
+    --status-info: #60A5FA;
+    --status-purple: #A78BFA;
 }
 
-/* Base App Background */
+/* ── Base ─────────────────────────────────────────────────── */
 .stApp {
     background-color: var(--bg-base);
     color: var(--text-primary);
     font-family: 'Inter', sans-serif;
 }
 
-/* Header Styling */
 header[data-testid="stHeader"] {
-    background-color: transparent;
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
     color: var(--text-primary) !important;
     font-weight: 600 !important;
     letter-spacing: -0.01em !important;
 }
 
-/* Metric / KPI Cards (Tier 1) */
+/* ── Sidebar ──────────────────────────────────────────────── */
+section[data-testid="stSidebar"] {
+    background-color: var(--bg-sidebar) !important;
+    border-right: 1px solid var(--border-subtle);
+}
+
+section[data-testid="stSidebar"] .stMarkdown p,
+section[data-testid="stSidebar"] label {
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem;
+}
+
+/* Sidebar nav item active */
+section[data-testid="stSidebar"] a[aria-selected="true"] {
+    color: var(--pep-green) !important;
+    border-left: 3px solid var(--pep-green);
+    background-color: var(--pep-green-glow);
+}
+
+/* ── PEPMOVE Header Bar ───────────────────────────────────── */
+.pep-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0 16px 0;
+    border-bottom: 2px solid var(--pep-green);
+    margin-bottom: 20px;
+}
+
+.pep-header-text h2 {
+    margin: 0 !important;
+    font-size: 1.05rem !important;
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+}
+
+.pep-header-text span {
+    font-size: 0.78rem;
+    color: var(--pep-grey);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* ── KPI / Metric Cards ───────────────────────────────────── */
 div[data-testid="stMetric"] {
-    background-color: var(--bg-panel);
+    background-color: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    padding: 1rem;
+    border-left: 3px solid var(--pep-green);
+    padding: 1rem 1.1rem;
     border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    transition: box-shadow 0.2s ease;
+}
+
+div[data-testid="stMetric"]:hover {
+    box-shadow: 0 4px 16px rgba(141, 198, 63, 0.12);
+    border-left-color: var(--pep-green-dark);
 }
 
 div[data-testid="stMetricLabel"] {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+    color: var(--text-secondary) !important;
+    font-size: 0.72rem !important;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
 }
 
 div[data-testid="stMetricValue"] {
-    color: var(--text-primary);
-    font-weight: 600;
+    color: var(--text-primary) !important;
+    font-weight: 700 !important;
+    font-size: 1.8rem !important;
 }
 
-/* Tables (Tier 2 & Lists) */
+div[data-testid="stMetricDelta"] {
+    font-size: 0.75rem !important;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0;
+    border-bottom: 2px solid var(--border-subtle);
+    background-color: transparent;
+    padding: 0;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 10px 22px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: var(--pep-grey-light);
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--pep-green) !important;
+    border-bottom: 2px solid var(--pep-green) !important;
+    font-weight: 600 !important;
+}
+
+.stTabs [data-baseweb="tab-panel"] {
+    padding-top: 20px;
+}
+
+/* ── Data Tables ──────────────────────────────────────────── */
 .stDataFrame {
     border: none !important;
 }
 
 div[data-testid="stDataFrame"] div[role="grid"] {
-    background-color: var(--bg-table);
+    background-color: var(--bg-card);
     border-radius: 8px;
     border: 1px solid var(--border-subtle);
 }
 
-/* Header Cells */
 div[data-testid="stDataFrame"] div[role="columnheader"] {
     background-color: var(--bg-panel) !important;
-    color: var(--text-secondary) !important;
+    color: var(--pep-grey-light) !important;
     font-weight: 600 !important;
     text-transform: uppercase;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border-subtle) !important;
 }
 
-/* Data Cells */
 div[data-testid="stDataFrame"] div[role="gridcell"] {
     background-color: transparent !important;
     color: var(--text-primary);
     font-size: 0.875rem;
     border-bottom: 1px solid var(--border-subtle);
-    height: 44px !important; /* Fixed row height request */
+    height: 44px !important;
     align-items: center;
 }
 
-/* Row Hover (approximate as streamlit doesn't expose tr directly always easily css-able without unique ids, but we try) */
 div[data-testid="stDataFrame"] div[role="row"]:hover div[role="gridcell"] {
     background-color: var(--bg-hover) !important;
 }
 
-/* Expander (Filters - Tier 4) */
+/* ── Expanders ────────────────────────────────────────────── */
 .streamlit-expanderHeader {
     background-color: var(--bg-panel);
     border-radius: 8px;
     border: 1px solid var(--border-subtle);
     color: var(--text-primary);
+    font-weight: 500;
 }
 
 .streamlit-expanderContent {
     background-color: var(--bg-panel);
     border-radius: 0 0 8px 8px;
-    border-left: 1px solid var(--border-subtle);
-    border-right: 1px solid var(--border-subtle);
-    border-bottom: 1px solid var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-top: none;
 }
 
-/* Custom Status Pills (HTML content) */
+/* ── Inputs & Selects ─────────────────────────────────────── */
+div[data-baseweb="input"] input,
+div[data-baseweb="select"] div {
+    background-color: var(--bg-panel) !important;
+    border-color: var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+}
+
+div[data-baseweb="input"] input:focus,
+div[data-baseweb="select"] div:focus {
+    border-color: var(--pep-green) !important;
+    box-shadow: 0 0 0 2px var(--pep-green-glow) !important;
+}
+
+/* ── Dividers ─────────────────────────────────────────────── */
+hr {
+    border-color: var(--border-subtle) !important;
+}
+
+/* ── Alerts / Info Boxes ──────────────────────────────────── */
+div[data-testid="stAlert"] {
+    border-radius: 8px;
+    border-left: 3px solid var(--pep-green);
+}
+
+/* ── Status Pills (custom HTML) ───────────────────────────── */
 .status-pill {
-    padding: 2px 8px;
+    padding: 3px 10px;
     border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: 0.72rem;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    letter-spacing: 0.03em;
 }
 
 .status-dot {
@@ -127,41 +264,21 @@ div[data-testid="stDataFrame"] div[role="row"]:hover div[role="gridcell"] {
     border-radius: 50%;
 }
 
-/* Filter Chips */
-.filter-chip {
-    background-color: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: 999px;
-    padding: 4px 12px;
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
 }
 
-.filter-chip:hover {
-    background-color: var(--bg-hover);
-    color: var(--text-primary);
-    border-color: rgba(255, 255, 255, 0.1);
+::-webkit-scrollbar-track {
+    background: var(--bg-base);
 }
 
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 24px;
-    border-bottom: 1px solid var(--border-subtle);
+::-webkit-scrollbar-thumb {
+    background: var(--pep-grey);
+    border-radius: 3px;
 }
 
-.stTabs [data-baseweb="tab"] {
-    background-color: transparent;
-    border: none;
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.stTabs [aria-selected="true"] {
-    color: var(--status-scheduled) !important; /* Blue highlight */
-    border-bottom: 2px solid var(--status-scheduled) !important;
+::-webkit-scrollbar-thumb:hover {
+    background: var(--pep-green);
 }

@@ -1,8 +1,0 @@
-Fetching jobs...
-
---- Inspecting COMPLETED Job Index 21 ---
-Raw job_date: '02/12/2026' (type=<class 'str'>)
-Raw time_complete: '11:35:00' (type=<class 'str'>)
-Combined: '02/12/2026 11:35:00'
-Parsed Result (errors='coerce'): 2026-02-12 11:35:00
-Parsed Result (format): 2026-02-12 11:35:00
