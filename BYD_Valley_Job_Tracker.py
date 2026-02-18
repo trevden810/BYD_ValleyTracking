@@ -68,7 +68,8 @@ if df_main.empty:
 # Replacing Sidebar with Top Filter Bar
 with st.container():
     # We use a container with a custom class/style if needed, but standard columns work well
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([2, 1.5, 1.5, 1, 1])
+    # Adjusted columns to fit Date Picker
+    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([2, 1.5, 1.5, 2, 1, 1])
     
     with f_col1:
         search_term = st.text_input("🔍 Search", placeholder="Job ID, BOL, or Product...", label_visibility="collapsed")
@@ -82,11 +83,25 @@ with st.container():
         # State
         states = ["All States"] + sorted(df_main['State'].dropna().unique().tolist()) if 'State' in df_main.columns else ["All States"]
         selected_state = st.selectbox("State", states, label_visibility="collapsed")
-        
+
     with f_col4:
-        show_white_glove = st.checkbox("White Glove", value=False)
+        # Date Range Filter
+        # Default: YTD -> +60 Days
+        today = datetime.now().date()
+        start_of_year = datetime(today.year, 1, 1).date()
+        future_limit = today + pd.Timedelta(days=60)
+        
+        date_range = st.date_input(
+            "Date Range",
+            value=(start_of_year, future_limit),
+            format="MM/DD/YYYY",
+            label_visibility="collapsed"
+        )
         
     with f_col5:
+        show_white_glove = st.checkbox("White Glove", value=False)
+        
+    with f_col6:
         # "Unscanned" Toggle -> "Action Req"
         show_unscanned_only = st.checkbox("Action Req", value=False)
 
@@ -94,6 +109,14 @@ st.markdown("<div style='margin-bottom: 16px; border-bottom: 1px solid rgba(255,
 
 # --- FILTER LOGIC ---
 df_filtered = df_main.copy()
+
+# 0. Date Range Logic
+if len(date_range) == 2:
+    start_date, end_date = date_range
+    if 'Planned_Date' in df_filtered.columns:
+        mask_date = (pd.to_datetime(df_filtered['Planned_Date'], errors='coerce').dt.date >= start_date) & \
+                    (pd.to_datetime(df_filtered['Planned_Date'], errors='coerce').dt.date <= end_date)
+        df_filtered = df_filtered[mask_date]
 
 # 1. Search
 if search_term:
