@@ -59,6 +59,17 @@ today = datetime.now().date()
 
 @st.cache_data(ttl=900)
 def load_data(target_date):
+    # 1. Try Supabase (Primary Source for ALL dates)
+    try:
+        client = SupabaseClient()
+        df = client.get_snapshot_by_date(target_date)
+        if df is not None and not df.empty:
+            return df
+    except Exception as e:
+        print(f"Error fetching from Supabase: {e}")
+
+    # 2. Fallback to local file (Only for Today)
+    # Note: This is a fallback if Supabase is unreachable or empty
     if target_date == datetime.now().date():
         file_path = "bydhistorical.xlsx"
         if not os.path.exists(file_path):
@@ -70,13 +81,8 @@ def load_data(target_date):
         except Exception as e:
             st.error(f"Error reading local file: {e}")
             return pd.DataFrame()
-    else:
-        try:
-            client = SupabaseClient()
-            df = client.get_snapshot_by_date(target_date)
-            return df if df is not None and not df.empty else pd.DataFrame()
-        except Exception:
-            return pd.DataFrame()
+            
+    return pd.DataFrame()
 
 selected_date = today
 df_main = load_data(selected_date)

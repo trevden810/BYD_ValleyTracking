@@ -82,7 +82,7 @@ def launch_streamlit_dashboard():
     """
     import subprocess
     
-    app_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app.py')
+    app_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'BYD_Valley_Job_Tracker.py')
     
     print("\n" + "=" * 60)
     print("Launching Streamlit Dashboard...")
