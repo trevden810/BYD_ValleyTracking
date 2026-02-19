@@ -130,6 +130,14 @@ with st.expander("🔍 Filters", expanded=True):
 # ── Filter Logic ──────────────────────────────────────────────────────────────
 df_filtered = df_main.copy()
 
+# Exclude Completed Jobs (Delivered / Complete)
+# User Request: These should be stored in DB but removed from active counts.
+if 'Status' in df_filtered.columns:
+    # Normalize status to lower case for comparison
+    status_lower = df_filtered['Status'].astype(str).str.lower().str.strip()
+    # Filter OUT completed statuses
+    df_filtered = df_filtered[~status_lower.isin(['delivered', 'complete', 'completed'])]
+
 # Date range
 if len(date_range) == 2:
     start_date, end_date = date_range
