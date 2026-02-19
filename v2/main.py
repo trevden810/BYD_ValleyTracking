@@ -51,19 +51,31 @@ def main(export_filepath: str = None, dry_run: bool = False):
         df_raw = load_manual_export(export_filepath)
         df_processed_raw = process_data(df_raw)
         
-        # Deduplicate jobs (new step)
+        # Deduplicate jobs (keep latest per Product_Serial)
         df_processed = deduplicate_jobs(df_processed_raw)
-        
-        print(f"[OK] Processed {len(df_processed)} unique records (from {len(df_processed_raw)} raw)")
+
+        # ── Strip completed/delivered jobs BEFORE writing to Supabase ──────────
+        # These are archived in job_history (future) but NEVER go into active snapshot.
+        active_statuses_to_exclude = ['complete', 'deliver']
+        if 'Status' in df_processed.columns:
+            status_lower = df_processed['Status'].astype(str).str.lower().str.strip()
+            exclude = status_lower.str.contains('|'.join(active_statuses_to_exclude), na=False)
+            before = len(df_processed)
+            df_active = df_processed[~exclude].copy()
+            print(f"[OK] Excluded {before - len(df_active)} completed/delivered jobs from active snapshot")
+        else:
+            df_active = df_processed.copy()
+
+        print(f"[OK] Processed {len(df_active)} active records (from {len(df_processed_raw)} raw)")
     except Exception as e:
         print(f"[ERROR] Error loading/processing data: {e}")
         return False
-    
-    # Step 2: Calculate KPIs
+
+    # Step 2: Calculate KPIs (on active jobs only)
     try:
-        kpis = calculate_kpis(df_processed)
+        kpis = calculate_kpis(df_active)
         print(f"\nKPI Summary:")
-        print(f"  Total Jobs: {kpis['total_jobs']}")
+        print(f"  Active Jobs: {kpis['total_jobs']}")
         print(f"  On-Time %: {kpis['on_time_pct']:.1f}%")
         print(f"  Avg Delay: {kpis['avg_delay_days']:.1f} days")
         print(f"  Overdue: {kpis['overdue_count']}")
@@ -71,32 +83,29 @@ def main(export_filepath: str = None, dry_run: bool = False):
     except Exception as e:
         print(f"[ERROR] Error calculating KPIs: {e}")
         return False
-    
+
     # Step 3: Supabase integration & Delta Calculation
     trends = {}
     deltas = {}
-    
-    # Always try to connect to Supabase to get history for Deltas (even in dry run if possible)
-    # But if dry_run, we don't write.
-    
+
     try:
         print(f"\nConnecting to Supabase...")
         supabase = SupabaseClient()
-        
-        # 3a. Get previous snapshot for DELTAS (before inserting new one)
+
+        # 3a. Get previous snapshot for DELTAS (before replacing with new one)
         previous_snapshot = supabase.get_latest_snapshot()
-        
+
         # Calculate deltas
         print("Calculating daily deltas...")
-        deltas = compare_snapshots(df_processed, previous_snapshot)
-        
+        deltas = compare_snapshots(df_active, previous_snapshot)
+
         print(f"  New Jobs: {len(deltas['new_jobs'])}")
         print(f"  New Arrivals: {len(deltas['new_arrivals'])}")
         print(f"  New Deliveries: {len(deltas['new_deliveries'])}")
-        
+
         if not dry_run:
-            # Insert snapshot
-            supabase.insert_snapshot(df_processed)
+            # Replace today's snapshot (delete old + insert fresh active jobs)
+            supabase.replace_today_snapshot(df_active)
             
             # Insert KPIs
             supabase.insert_kpis(kpis)

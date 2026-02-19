@@ -74,6 +74,37 @@ class SupabaseClient:
             print(f"[ERROR] Error inserting snapshot: {e}")
             return 0
     
+    def replace_today_snapshot(self, df: pd.DataFrame) -> int:
+        """
+        Replaces today's snapshot with fresh data (delete-then-insert).
+        This ensures multiple import runs on the same day don't accumulate
+        stale records. Completed/delivered jobs should be pre-filtered before
+        calling this method.
+
+        Args:
+            df: Processed DataFrame with ACTIVE jobs only (no completed)
+
+        Returns:
+            Number of records inserted
+        """
+        today = datetime.now().date()
+        start_ts = datetime.combine(today, datetime.min.time()).isoformat()
+        end_ts   = datetime.combine(today, datetime.max.time()).isoformat()
+
+        # Step 1: Delete all records for today
+        try:
+            self.client.table('job_snapshots') \
+                .delete() \
+                .gte('snapshot_date', start_ts) \
+                .lte('snapshot_date', end_ts) \
+                .execute()
+            print(f"[OK] Cleared existing snapshot for {today}")
+        except Exception as e:
+            print(f"[WARN] Could not clear today's snapshot (will still insert): {e}")
+
+        # Step 2: Insert fresh records
+        return self.insert_snapshot(df)
+
     def insert_kpis(self, kpis: Dict, report_date: datetime = None) -> bool:
         """
         Inserts KPI snapshot for historical tracking.

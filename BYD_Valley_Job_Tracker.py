@@ -3,11 +3,10 @@ import pandas as pd
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-from utils.api import get_token, fetch_jobs, process_data, fetch_jobs_from_excel
+from utils.api import process_data, fetch_jobs_from_excel
 from v2.supabase_client import SupabaseClient
 from v2.job_chains import get_chain_alerts, JobChainManager
 
-# Load environment variables from .env file
 load_dotenv()
 
 # ── Page Config ───────────────────────────────────────────────────────────────
@@ -18,15 +17,65 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ── Load CSS ──────────────────────────────────────────────────────────────────
-def load_css(file_name):
-    if os.path.exists(file_name):
-        with open(file_name) as f:
-            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+# ── Inline CSS ────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* Base */
+[data-testid="stAppViewContainer"] { background: #13161C; }
+[data-testid="stHeader"] { background: transparent; }
 
-load_css("assets/style.css")
+/* KPI Cards */
+.kpi-card {
+    background: #1C2030;
+    border: 1px solid #2A2F3E;
+    border-radius: 10px;
+    padding: 18px 20px;
+    text-align: center;
+}
+.kpi-label { font-size: 0.72rem; color: #808285; text-transform: uppercase; letter-spacing: .1em; font-weight: 600; margin-bottom: 6px; }
+.kpi-value { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+.kpi-sub   { font-size: 0.72rem; color: #60657A; margin-top: 4px; }
+.kpi-green  { color: #8DC63F; }
+.kpi-red    { color: #E05A5A; }
+.kpi-amber  { color: #F5A623; }
+.kpi-blue   { color: #4A9EFF; }
+.kpi-white  { color: #F0F2F5; }
 
-# ── PEPMOVE Header ────────────────────────────────────────────────────────────
+/* Bucket headers */
+.bucket-header {
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bucket-red   { background: rgba(224,90,90,.15);  border-left: 3px solid #E05A5A; }
+.bucket-amber { background: rgba(245,166,35,.12); border-left: 3px solid #F5A623; }
+.bucket-green { background: rgba(141,198,63,.12); border-left: 3px solid #8DC63F; }
+.bucket-blue  { background: rgba(74,158,255,.12); border-left: 3px solid #4A9EFF; }
+
+.bucket-title { font-size: 0.85rem; font-weight: 700; color: #F0F2F5; }
+.bucket-count { font-size: 1.1rem; font-weight: 800; margin-left: auto; }
+.bucket-desc  { font-size: 0.68rem; color: #808285; margin-top: 2px; }
+
+/* Divider */
+.green-divider { border-bottom: 2px solid #8DC63F; margin: 12px 0 22px 0; }
+
+/* Alert row */
+.alert-row {
+    background: rgba(224,90,90,.1);
+    border: 1px solid rgba(224,90,90,.3);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin-bottom: 6px;
+    font-size: 0.8rem;
+    color: #F0F2F5;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Header ────────────────────────────────────────────────────────────────────
 logo_path = "assets/Banner Size.png"
 col_logo, col_title = st.columns([1, 4])
 with col_logo:
@@ -49,593 +98,386 @@ with col_title:
         </div>
     """, unsafe_allow_html=True)
 
-st.markdown(
-    "<div style='border-bottom: 2px solid #8DC63F; margin: 12px 0 20px 0;'></div>",
-    unsafe_allow_html=True
-)
+st.markdown("<div class='green-divider'></div>", unsafe_allow_html=True)
 
-# ── Data Loading ──────────────────────────────────────────────────────────────
-today = datetime.now().date()
 
+# ── Data Loading ───────────────────────────────────────────────────────────────
 @st.cache_data(ttl=900)
-def load_data(target_date):
-    df = pd.DataFrame()
-
-    # 1. Try Supabase (Primary Source for ALL dates)
+def load_data():
+    """
+    Load from Supabase (latest snapshot date).
+    Falls back to local Excel if Supabase is unavailable.
+    Data is already clean — completed jobs are filtered at import time.
+    """
+    # 1. Try Supabase — fetch the most recent snapshot date available
     try:
         client = SupabaseClient()
-        result = client.get_snapshot_by_date(target_date)
-        if result is not None and not result.empty:
-            df = result
+
+        # Get the latest snapshot_date in the DB
+        date_q = client.client.table('job_snapshots') \
+            .select('snapshot_date') \
+            .order('snapshot_date', desc=True) \
+            .limit(1) \
+            .execute()
+
+        if date_q.data:
+            latest_ts = date_q.data[0]['snapshot_date']
+            # Parse just the date part
+            latest_date = pd.to_datetime(latest_ts).date()
+            df = client.get_snapshot_by_date(latest_date)
+            if df is not None and not df.empty:
+                return df, latest_date
+
     except Exception as e:
-        print(f"Error fetching from Supabase: {e}")
+        print(f"[WARN] Supabase unavailable: {e}")
 
-    # 2. Fallback to local file (Only for Today)
-    if df.empty and target_date == datetime.now().date():
-        file_path = "bydhistorical.xlsx"
-        if os.path.exists(file_path):
-            try:
-                raw_data = fetch_jobs_from_excel(file_path)
-                df = process_data(raw_data)
-            except Exception as e:
-                print(f"Error reading local file: {e}")
+    # 2. Fallback: local Excel
+    file_path = "bydhistorical.xlsx"
+    if os.path.exists(file_path):
+        try:
+            raw = fetch_jobs_from_excel(file_path)
+            df = process_data(raw)
+            # Apply safety filter even on local fallback
+            if 'Status' in df.columns:
+                mask = df['Status'].astype(str).str.lower().str.strip().str.contains(
+                    'complete|deliver', na=False
+                )
+                df = df[~mask]
+            return df, datetime.now().date()
+        except Exception as e:
+            print(f"[ERROR] Local fallback failed: {e}")
 
-    if df.empty:
-        return df
+    return pd.DataFrame(), None
 
-    # ── Exclude Completed / Delivered Jobs ────────────────────────────────────
-    # These are stored in Supabase for history but should NOT appear in the UI.
-    # Check both 'Status' (post-mapping) and 'job_status' (raw Supabase column).
-    for col in ['Status', 'job_status', 'status']:
-        if col in df.columns:
-            exclude_mask = df[col].astype(str).str.lower().str.strip().str.contains(
-                'complete|deliver', na=False
-            )
-            before = len(df)
-            df = df[~exclude_mask]
-            print(f"[INFO] Excluded {before - len(df)} completed/delivered jobs (col='{col}')")
-            break  # Only filter once on the first matching column
 
-    return df
+df_raw, data_date = load_data()
 
-selected_date = today
-df_main = load_data(selected_date)
-
-if df_main.empty:
-    st.warning("⚠️ Data source not found (`bydhistorical.xlsx`) or empty. Run the daily import first.")
+if df_raw.empty:
+    st.warning("⚠️ No data found. Run the daily import first.")
     st.stop()
 
-# ── Global Filters (collapsible) ──────────────────────────────────────────────
+# ── Global Filters ─────────────────────────────────────────────────────────────
 with st.expander("🔍 Filters", expanded=True):
-    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([2.5, 1.5, 1.5, 2, 1, 1])
+    fc1, fc2, fc3, fc4, fc5, fc6 = st.columns([2.5, 1.5, 1.5, 2, 1, 1])
 
-    with f_col1:
-        search_term = st.text_input(
-            "Search", placeholder="🔍  Job ID, Product, or Notes...",
-            label_visibility="collapsed"
-        )
+    with fc1:
+        search = st.text_input("Search", placeholder="🔍  Job ID, Product, or Notes...",
+                               label_visibility="collapsed")
+    with fc2:
+        carriers = (["All Carriers"] + sorted(df_raw['Carrier'].dropna().unique().tolist())
+                    if 'Carrier' in df_raw.columns else ["All Carriers"])
+        sel_carrier = st.selectbox("Carrier", carriers, label_visibility="collapsed")
+    with fc3:
+        states = (["All States"] + sorted(df_raw['State'].dropna().unique().tolist())
+                  if 'State' in df_raw.columns else ["All States"])
+        sel_state = st.selectbox("State", states, label_visibility="collapsed")
+    with fc4:
+        start_of_year  = datetime(datetime.now().year, 1, 1).date()
+        future_limit   = datetime.now().date() + pd.Timedelta(days=60)
+        date_range = st.date_input("Date Range", value=(start_of_year, future_limit),
+                                   format="MM/DD/YYYY", label_visibility="collapsed")
+    with fc5:
+        show_wg = st.checkbox("White Glove", value=False)
+    with fc6:
+        show_action = st.checkbox("Action Req", value=False)
 
-    with f_col2:
-        carriers = (["All Carriers"] + sorted(df_main['Carrier'].dropna().unique().tolist())
-                    if 'Carrier' in df_main.columns else ["All Carriers"])
-        selected_carrier = st.selectbox("Carrier", carriers, label_visibility="collapsed")
 
-    with f_col3:
-        states = (["All States"] + sorted(df_main['State'].dropna().unique().tolist())
-                  if 'State' in df_main.columns else ["All States"])
-        selected_state = st.selectbox("State", states, label_visibility="collapsed")
+# ── Apply Filters ──────────────────────────────────────────────────────────────
+df = df_raw.copy()
 
-    with f_col4:
-        start_of_year = datetime(today.year, 1, 1).date()
-        future_limit  = today + pd.Timedelta(days=60)
-        date_range = st.date_input(
-            "Date Range",
-            value=(start_of_year, future_limit),
-            format="MM/DD/YYYY",
-            label_visibility="collapsed"
-        )
+if len(date_range) == 2 and 'Planned_Date' in df.columns:
+    s, e = date_range
+    mask = (pd.to_datetime(df['Planned_Date'], errors='coerce').dt.date >= s) & \
+           (pd.to_datetime(df['Planned_Date'], errors='coerce').dt.date <= e)
+    df = df[mask]
 
-    with f_col5:
-        show_white_glove = st.checkbox("White Glove", value=False)
+if sel_carrier != "All Carriers" and 'Carrier' in df.columns:
+    df = df[df['Carrier'] == sel_carrier]
 
-    with f_col6:
-        show_unscanned_only = st.checkbox("Action Req", value=False)
+if sel_state != "All States" and 'State' in df.columns:
+    df = df[df['State'] == sel_state]
 
-# ── Filter Logic ──────────────────────────────────────────────────────────────
-# Note: Completed/Delivered jobs are already excluded by load_data().
-df_filtered = df_main.copy()
+if show_wg and 'White_Glove' in df.columns:
+    df = df[df['White_Glove'] == True]
 
-# Date range
-if len(date_range) == 2:
-    start_date, end_date = date_range
-    if 'Planned_Date' in df_filtered.columns:
-        mask_date = (
-            (pd.to_datetime(df_filtered['Planned_Date'], errors='coerce').dt.date >= start_date) &
-            (pd.to_datetime(df_filtered['Planned_Date'], errors='coerce').dt.date <= end_date)
-        )
-        df_filtered = df_filtered[mask_date]
+if search:
+    s = search.lower()
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in ['Job_ID', 'Product_Name', 'Notification_Detail', 'Stop_Number']:
+        if col in df.columns:
+            mask |= df[col].astype(str).str.lower().str.contains(s, na=False)
+    df = df[mask]
 
-# Search
-if search_term:
-    s = search_term.lower()
-    mask = (
-        df_filtered['Job_ID'].astype(str).str.lower().str.contains(s, na=False) |
-        df_filtered['Product_Name'].astype(str).str.lower().str.contains(s, na=False) |
-        df_filtered['Customer_Notes'].astype(str).str.lower().str.contains(s, na=False)
-    )
-    df_filtered = df_filtered[mask]
 
-# Dropdowns
-if selected_carrier != "All Carriers":
-    df_filtered = df_filtered[df_filtered['Carrier'] == selected_carrier]
-if selected_state != "All States":
-    df_filtered = df_filtered[df_filtered['State'] == selected_state]
+# ── Status Masks ───────────────────────────────────────────────────────────────
+# Scanned = has a Last_Scan_User value
+scanned_mask = (
+    df.get('Last_Scan_User', pd.Series([''] * len(df), index=df.index))
+    .astype(str).str.strip().replace('nan', '').ne('')
+) if 'Last_Scan_User' in df.columns else pd.Series([False] * len(df), index=df.index)
 
-# White Glove
-if show_white_glove and 'White_Glove' in df_filtered.columns:
-    df_filtered = df_filtered[df_filtered['White_Glove'] == True]
+# Also check Scan_Count > 0 if available
+if 'Scan_Count' in df.columns:
+    scanned_mask = scanned_mask | (pd.to_numeric(df['Scan_Count'], errors='coerce').fillna(0) > 0)
 
-# Scan masks (computed once, used across sections)
-if 'Last_Scan_User' in df_filtered.columns:
-    scanned_mask = (df_filtered['Last_Scan_User'].notna()) & (df_filtered['Last_Scan_User'] != '')
-else:
-    scanned_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+# Arrived = has Actual_Date
+arrived_mask = pd.to_datetime(df.get('Actual_Date'), errors='coerce').notna() \
+    if 'Actual_Date' in df.columns else pd.Series([False] * len(df), index=df.index)
 
-if show_unscanned_only:
-    df_filtered = df_filtered[~scanned_mask]
-    scanned_mask = scanned_mask[df_filtered.index]  # realign after filter
+# Routed = has Assigned_Driver
+routed_mask = (
+    df.get('Is_Routed', pd.Series([False] * len(df), index=df.index))
+    .astype(bool)
+) if 'Is_Routed' in df.columns else pd.Series([False] * len(df), index=df.index)
 
-# ── Computed KPIs ─────────────────────────────────────────────────────────────
-current_view_count = len(df_filtered)
-scanned_n   = int(scanned_mask.sum()) if len(scanned_mask) == len(df_filtered) else 0
-unscanned_n = current_view_count - scanned_n
+# Buckets
+bucket_exception   = df[routed_mask & ~scanned_mask]                   # 🔴 Routed but NOT Scanned
+bucket_ready_scan  = df[arrived_mask & ~scanned_mask & ~routed_mask]   # 📦 Arrived, not scanned, not routed
+bucket_ready_route = df[scanned_mask & ~routed_mask]                   # 🟡 Scanned, needs routing
+bucket_in_transit  = df[scanned_mask & routed_mask]                    # 🟢 Scanned + Routed
 
-# SLA Risk: Planned < Today AND not scanned
-sla_risk_n = 0
-overdue_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
-if 'Planned_Date' in df_filtered.columns:
-    safe_planned = pd.to_datetime(df_filtered['Planned_Date'], errors='coerce')
-    overdue_mask = (safe_planned.dt.date < today) & (~scanned_mask)
-    sla_risk_n   = int(overdue_mask.sum())
+if show_action:
+    df = bucket_exception if not bucket_exception.empty else df[pd.Series([False]*len(df), index=df.index)]
 
-# White Glove Pending
-wg_pending_n = 0
-wg_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
-if 'White_Glove' in df_filtered.columns:
-    wg_mask      = (df_filtered['White_Glove'] == True) & (~scanned_mask)
-    wg_pending_n = int(wg_mask.sum())
 
-# ── Tab Navigation ────────────────────────────────────────────────────────────
-tab_dash, tab_board, tab_reschedule, tab_list = st.tabs([
-    "📊  Dashboard",
-    "📋  Job Board",
-    "🔄  Reschedules",
-    "📝  Full Job List"
-])
+# ── TABS ───────────────────────────────────────────────────────────────────────
+tab_overview, tab_board, tab_reschedules, tab_full = st.tabs(
+    ["📊 Overview", "📋 Job Board", "🔁 Reschedules", "📄 Full Job List"]
+)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — DASHBOARD
-# ═══════════════════════════════════════════════════════════════════════════════
-with tab_dash:
 
-    # KPI Cards
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total In View",  f"{current_view_count}", "Jobs")
-    m2.metric("Scanned",        f"{scanned_n}",
-              f"{(scanned_n / current_view_count * 100):.0f}%" if current_view_count else "0%")
-    m3.metric("Unscanned",      f"{unscanned_n}", "Action Req",   delta_color="inverse")
-    m4.metric("SLA Risk",       f"{sla_risk_n}",  "Critical",     delta_color="inverse")
-    m5.metric("White Glove",    f"{wg_pending_n}", "Pending",     delta_color="normal")
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1 — OVERVIEW
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_overview:
+
+    # ── KPI Cards ──
+    k1, k2, k3, k4, k5 = st.columns(5)
+
+    def kpi(col, label, value, sub, color):
+        with col:
+            st.markdown(f"""
+            <div class="kpi-card">
+                <div class="kpi-label">{label}</div>
+                <div class="kpi-value {color}">{value}</div>
+                <div class="kpi-sub">{sub}</div>
+            </div>""", unsafe_allow_html=True)
+
+    kpi(k1, "Active Jobs",          len(df),                   "in date range",              "kpi-white")
+    kpi(k2, "Routed Exception 🔴",  len(bucket_exception),     "routed but not scanned",     "kpi-red"   if len(bucket_exception) > 0 else "kpi-green")
+    kpi(k3, "Ready for Scan 📦",    len(bucket_ready_scan),    "arrived, awaiting scan",     "kpi-amber" if len(bucket_ready_scan) > 0 else "kpi-green")
+    kpi(k4, "Ready for Routing 🟡", len(bucket_ready_route),   "scanned, needs driver",      "kpi-amber" if len(bucket_ready_route) > 0 else "kpi-green")
+    kpi(k5, "In Transit 🟢",        len(bucket_in_transit),    "scanned + driver assigned",  "kpi-green")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Exception Watchlist
-    if sla_risk_n > 0 or wg_pending_n > 0:
-        st.markdown("""
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                <div style="width:4px; height:22px; background:#EF4444; border-radius:2px;"></div>
-                <h3 style="margin:0; color:#F0F2F5;">Exception Watchlist</h3>
-            </div>
-        """, unsafe_allow_html=True)
+    # ── Data Info Bar ──
+    col_info1, col_info2, col_info3 = st.columns(3)
+    with col_info1:
+        st.markdown(f"**📅 Data Date:** {data_date.strftime('%A, %b %d %Y') if data_date else 'Unknown'}")
+    with col_info2:
+        st.markdown(f"**🕐 Cache refreshes every:** 15 minutes")
+    with col_info3:
+        if st.button("🔄 Refresh Data"):
+            st.cache_data.clear()
+            st.rerun()
 
-        watchlist_mask = overdue_mask | wg_mask
-        df_watchlist   = df_filtered[watchlist_mask].copy()
+    # ── Exception Watchlist ──
+    if not bucket_exception.empty:
+        st.markdown("---")
+        st.markdown("### 🚨 Exception Watchlist — Routed but Not Scanned")
+        st.markdown("*These jobs have a driver assigned but no scan recorded. Confirm status immediately.*")
+        disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
+                                  'Assigned_Driver', 'Stop_Number'] if c in bucket_exception.columns]
+        st.dataframe(
+            bucket_exception[disp_cols].reset_index(drop=True),
+            use_container_width=True, hide_index=True
+        )
 
-        if not df_watchlist.empty:
-            df_watchlist['Days_Overdue'] = (
-                pd.to_datetime(today) -
-                pd.to_datetime(df_watchlist['Planned_Date'], errors='coerce').dt.normalize()
-            ).dt.days.fillna(0).astype(int)
-
-            df_watchlist.sort_values(
-                by=['Days_Overdue', 'White_Glove'], ascending=[False, False], inplace=True
-            )
-
-            wl_cols = {
-                'Job_ID': 'Job ID', 'Product_Name': 'Product', 'Carrier': 'Carrier',
-                'Planned_Date': 'Planned', 'Days_Overdue': 'Days Late',
-                'White_Glove': 'White Glove', 'State': 'State'
-            }
-            final_wl_cols = {k: v for k, v in wl_cols.items() if k in df_watchlist.columns}
-            df_wl_display = df_watchlist[list(final_wl_cols.keys())].rename(columns=final_wl_cols)
-
-            st.dataframe(
-                df_wl_display.style.format({'Planned': '{:%Y-%m-%d}'}),
-                use_container_width=True,
-                hide_index=True
-            )
-        st.divider()
-    else:
-        st.success("✅ No exceptions — all jobs are on track within the selected filters.")
-
-    # Quick summary bar
-    scan_pct = (scanned_n / current_view_count * 100) if current_view_count else 0
-    st.markdown(f"""
-        <div style="background:{('#1E2124')}; border:1px solid rgba(255,255,255,0.07);
-                    border-radius:8px; padding:14px 20px; margin-top:8px;
-                    display:flex; gap:40px; flex-wrap:wrap;">
-            <div>
-                <div style="font-size:0.7rem; color:#808285; text-transform:uppercase;
-                            letter-spacing:0.06em;">Scan Rate</div>
-                <div style="font-size:1.3rem; font-weight:700; color:#8DC63F;">{scan_pct:.1f}%</div>
-            </div>
-            <div>
-                <div style="font-size:0.7rem; color:#808285; text-transform:uppercase;
-                            letter-spacing:0.06em;">Date Range</div>
-                <div style="font-size:1rem; font-weight:600; color:#F0F2F5;">
-                    {date_range[0].strftime('%b %d') if len(date_range) == 2 else '—'}
-                    &nbsp;→&nbsp;
-                    {date_range[1].strftime('%b %d, %Y') if len(date_range) == 2 else '—'}
-                </div>
-            </div>
-            <div>
-                <div style="font-size:0.7rem; color:#808285; text-transform:uppercase;
-                            letter-spacing:0.06em;">Last Refreshed</div>
-                <div style="font-size:1rem; font-weight:600; color:#F0F2F5;">
-                    {datetime.now().strftime('%I:%M %p')}
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    # ── Overdue Arrivals ──
+    today = datetime.now().date()
+    if 'Planned_Date' in df.columns and 'Actual_Date' in df.columns:
+        overdue = df[
+            (pd.to_datetime(df['Planned_Date'], errors='coerce').dt.date < today) &
+            (pd.to_datetime(df['Actual_Date'], errors='coerce').isna())
+        ]
+        if not overdue.empty:
+            st.markdown("---")
+            st.markdown(f"### ⚠️ Overdue Arrivals ({len(overdue)})")
+            st.markdown("*Planned date has passed — not yet arrived at dock.*")
+            disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State'] if c in overdue.columns]
+            st.dataframe(overdue[disp_cols].reset_index(drop=True),
+                         use_container_width=True, hide_index=True)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — JOB BOARD
-# ═══════════════════════════════════════════════════════════════════════════════
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — JOB BOARD
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 with tab_board:
+    st.markdown("### Intake & Routing Board")
+    col_dock, col_dispatch = st.columns(2)
 
-    st.markdown("""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-            <div style="width:4px; height:22px; background:#8DC63F; border-radius:2px;"></div>
-            <h3 style="margin:0; color:#F0F2F5;">Intake &amp; Routing Board</h3>
-        </div>
-    """, unsafe_allow_html=True)
-
-    if 'Actual_Date' in df_filtered.columns and 'Last_Scan_User' in df_filtered.columns:
-        # masks
-        arrived_mask  = df_filtered['Actual_Date'].notna()
-        scanned_mask2 = (df_filtered['Last_Scan_User'].notna()) & (df_filtered['Last_Scan_User'] != '')
-        routed_mask   = df_filtered['Assigned_Driver'].apply(lambda x: True if str(x).lower() not in ['nan','none','','unknown'] else False)
-
-        if 'Status' in df_filtered.columns:
-            completed_mask = df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed'])
+    def bucket_table(bucket_df, cols):
+        """Render a compact table for a bucket."""
+        display_cols = [c for c in cols if c in bucket_df.columns]
+        if bucket_df.empty:
+            st.markdown("<p style='color:#60657A; font-size:0.8rem; padding: 8px 0;'>No items.</p>",
+                        unsafe_allow_html=True)
         else:
-            completed_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
-        
-        # 1. Routed Exception (Routed + NOT Scanned) -> CRITICAL
-        # Note: Must be arrived or planned? Usually check if it's "active". 
-        # For now, let's assume if it's visible in this filtered view (e.g. date range), it's fair game.
-        # But commonly we only care if it Arrived AND Routed but no scan? Or just Routed no scan?
-        # User request: "routed and not scanned" -> Red Flag.
-        bucket_routed_noscan = df_filtered[routed_mask & ~scanned_mask2 & ~completed_mask]
-        
-        # 2. Ready for Scan (Arrived + NOT Scanned + NOT Routed) -> Standard Intake
-        bucket_intake = df_filtered[arrived_mask & ~scanned_mask2 & ~routed_mask & ~completed_mask]
-        
-        # 3. Ready for Routing (Scanned + NOT Routed) -> CTA / Action Req
-        bucket_ready_routing = df_filtered[scanned_mask2 & ~routed_mask & ~completed_mask]
-        
-        # 4. In Transit (Scanned + Routed) -> Good
-        bucket_transit = df_filtered[scanned_mask2 & routed_mask & ~completed_mask]
+            st.dataframe(bucket_df[display_cols].reset_index(drop=True),
+                         use_container_width=True, hide_index=True, height=300)
 
-        # ── Layout ──
-        # Left Column: Dock / Intake Issues
-        # Right Column: Outbound / Dispatch Flow
-        b_col1, b_col2 = st.columns(2)
+    DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'Stop_Number']
+    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Planned_Date', 'Carrier', 'Stop_Number']
+    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier']
 
-        with b_col1:
-            st.caption("Dock & Intake Operations")
-            
-            # [A] Routed Exception (Critical)
-            count_exception = len(bucket_routed_noscan)
-            if count_exception > 0:
-                st.markdown(f"""
-                    <div style="background:#1E2124; border:1px solid rgba(239, 68, 68, 0.3);
-                                border-left:3px solid #EF4444; border-radius:8px;
-                                padding:12px 16px; margin-bottom:12px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <div style="font-size:0.72rem; color:#EF4444; text-transform:uppercase;
-                                            letter-spacing:0.06em; font-weight:700;">⚠️ Routed Exception</div>
-                                <div style="font-size:1.8rem; font-weight:700; color:#EF4444;">{count_exception}</div>
-                                <div style="font-size:0.78rem; color:#9EA3A8;">Router assigned but NOT scanned</div>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                cols_exc = [c for c in ['Job_ID', 'Assigned_Driver', 'Planned_Date', 'Product_Name'] if c in bucket_routed_noscan.columns]
-                st.dataframe(bucket_routed_noscan[cols_exc].head(50), use_container_width=True, hide_index=True)
-                st.divider()
-            
-            # [B] Ready for Scan (Standard)
-            count_intake = len(bucket_intake)
-            st.markdown(f"""
-                <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
-                            border-left:3px solid #8DC63F; border-radius:8px;
-                            padding:12px 16px; margin-bottom:12px;">
-                    <div style="font-size:0.72rem; color:#808285; text-transform:uppercase;
-                                letter-spacing:0.06em;">Ready for Scan</div>
-                    <div style="font-size:1.8rem; font-weight:700; color:#8DC63F;">{count_intake}</div>
-                    <div style="font-size:0.78rem; color:#9EA3A8;">Arrived at dock — awaiting scan</div>
-                </div>
-            """, unsafe_allow_html=True)
-            if not bucket_intake.empty:
-                cols_i = [c for c in ['Job_ID', 'Carrier', 'Product_Name', 'Actual_Date'] if c in bucket_intake.columns]
-                st.dataframe(bucket_intake[cols_i].head(50), use_container_width=True, hide_index=True)
-            elif count_exception == 0:
-                st.info("No items awaiting scan.")
+    with col_dock:
+        st.markdown("**Dock & Intake Operations**")
 
-        with b_col2:
-            st.caption("Dispatch & Outbound")
-
-            # [C] Ready for Routing (Action Req)
-            count_routing = len(bucket_ready_routing)
-            color_routing = "#F59E0B" if count_routing > 0 else "#808285"
-            st.markdown(f"""
-                <div style="background:#1E2124; border:1px solid rgba(245, 158, 11, 0.2);
-                            border-left:3px solid {color_routing}; border-radius:8px;
-                            padding:12px 16px; margin-bottom:12px;">
-                    <div style="font-size:0.72rem; color:{color_routing}; text-transform:uppercase;
-                                letter-spacing:0.06em; font-weight:600;">Action: Ready for Routing</div>
-                    <div style="font-size:1.8rem; font-weight:700; color:#F0F2F5;">{count_routing}</div>
-                    <div style="font-size:0.78rem; color:#9EA3A8;">Scanned — needs driver assignment</div>
-                </div>
-            """, unsafe_allow_html=True)
-            if not bucket_ready_routing.empty:
-                cols_r = [c for c in ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Scanned_Date'] if c in bucket_ready_routing.columns]
-                st.dataframe(bucket_ready_routing[cols_r].head(50), use_container_width=True, hide_index=True)
-                st.divider()
-
-            # [D] In Transit (Good)
-            count_transit = len(bucket_transit)
-            st.markdown(f"""
-                <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
-                            border-left:3px solid #10B981; border-radius:8px;
-                            padding:12px 16px; margin-bottom:12px;">
-                    <div style="font-size:0.72rem; color:#808285; text-transform:uppercase;
-                                letter-spacing:0.06em;">In Transit / Route</div>
-                    <div style="font-size:1.8rem; font-weight:700; color:#10B981;">{count_transit}</div>
-                    <div style="font-size:0.78rem; color:#9EA3A8;">Scanned & Assigned</div>
-                </div>
-            """, unsafe_allow_html=True)
-            if not bucket_transit.empty:
-                cols_t = [c for c in ['Job_ID', 'Assigned_Driver', 'Last_Scan_User', 'Status'] if c in bucket_transit.columns]
-                st.dataframe(bucket_transit[cols_t].head(50), use_container_width=True, hide_index=True)
-
-    else:
-        st.info("Required data (Arrival/Scan/Driver) not available for Job Board.")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — RESCHEDULE TRACKER
-# ═══════════════════════════════════════════════════════════════════════════════
-with tab_reschedule:
-
-    st.markdown("""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-            <div style="width:4px; height:22px; background:#F59E0B; border-radius:2px;"></div>
-            <h3 style="margin:0; color:#F0F2F5;">Reschedule Tracker</h3>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-        <p style="color:#9EA3A8; font-size:0.85rem; margin-bottom:16px;">
-            Track jobs that have been rescheduled. Products are linked by serial number 
-            to show the complete history of reschedules.
-        </p>
-    """, unsafe_allow_html=True)
-
-    # Try to load chain data from Supabase
-    chain_alerts = []
-    active_chains = []
-    
-    try:
-        supabase_client = SupabaseClient()
-        chain_alerts = get_chain_alerts(supabase_client.client)
-        
-        # Get all active chains
-        manager = JobChainManager(supabase_client.client)
-        active_chains = manager.get_active_chains()
-        
-    except Exception as e:
-        st.warning(f"⚠️ Unable to load chain data from database: {str(e)[:50]}...")
-        chain_alerts = []
-        active_chains = []
-
-    # KPI Cards for Reschedules
-    r_col1, r_col2, r_col3, r_col4 = st.columns(4)
-    
-    total_chains = len(active_chains)
-    critical_count = len([a for a in chain_alerts if a['severity'] == 'critical'])
-    warning_count = len([a for a in chain_alerts if a['severity'] == 'warning'])
-    high_freq_count = len([c for c in active_chains if c.get('reschedule_count', 0) >= 2])
-    
-    r_col1.metric("Active Chains", f"{total_chains}", "Products tracked")
-    r_col2.metric("Critical Alerts", f"{critical_count}", "3+ reschedules", delta_color="inverse")
-    r_col3.metric("Warnings", f"{warning_count}", "2 reschedules or 14+ days", delta_color="inverse")
-    r_col4.metric("High Frequency", f"{high_freq_count}", "2+ reschedules")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Alerts Section
-    if chain_alerts:
-        st.markdown("""
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <div style="width:4px; height:18px; background:#EF4444; border-radius:2px;"></div>
-                <h4 style="margin:0; color:#F0F2F5;">⚠️ Chain Alerts</h4>
+        # 🔴 Routed Exception
+        st.markdown(f"""
+        <div class="bucket-header bucket-red">
+            <span>🔴</span>
+            <div>
+                <div class="bucket-title">Routed Exception</div>
+                <div class="bucket-desc">Driver assigned — scan missing</div>
             </div>
-        """, unsafe_allow_html=True)
-        
-        for alert in chain_alerts[:10]:  # Show top 10 alerts
-            severity_color = "#EF4444" if alert['severity'] == 'critical' else "#F59E0B"
-            severity_icon = "🚨" if alert['severity'] == 'critical' else "⚠️"
-            
-            st.markdown(f"""
-                <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
-                            border-left:3px solid {severity_color}; border-radius:6px;
-                            padding:10px 14px; margin-bottom:8px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <span style="font-size:1.1rem;">{severity_icon}</span>
-                            <span style="font-weight:600; color:#F0F2F5; margin-left:8px;">
-                                {alert.get('product_serial', 'N/A')}
-                            </span>
-                            <span style="color:#808285; margin-left:12px; font-size:0.8rem;">
-                                {alert.get('carrier', '')}
-                            </span>
-                        </div>
-                        <div style="text-align:right;">
-                            <span style="background:{severity_color}; color:white; padding:2px 8px; 
-                                        border-radius:4px; font-size:0.7rem; font-weight:600;">
-                                {alert.get('reschedule_count', 0)} reschedules
-                            </span>
-                        </div>
-                    </div>
-                    <div style="color:#9EA3A8; font-size:0.8rem; margin-top:6px;">
-                        {alert.get('message', '')}
-                        {f" • Current Job: {alert.get('current_job_id', '')}" if alert.get('current_job_id') else ''}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        
-        if len(chain_alerts) > 10:
-            st.caption(f"...and {len(chain_alerts) - 10} more alerts")
-        
+            <span class="bucket-count kpi-red">{len(bucket_exception)}</span>
+        </div>""", unsafe_allow_html=True)
+        bucket_table(bucket_exception, DOCK_COLS)
+
         st.markdown("<br>", unsafe_allow_html=True)
 
-    # Active Chains Table
-    st.markdown("""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <div style="width:4px; height:18px; background:#8DC63F; border-radius:2px;"></div>
-            <h4 style="margin:0; color:#F0F2F5;">📋 All Active Chains</h4>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    if active_chains:
-        # Convert to DataFrame for display
-        df_chains = pd.DataFrame(active_chains)
-        
-        # Select and rename columns
-        display_cols = {
-            'product_serial': 'Serial Number',
-            'carrier': 'Carrier',
-            'reschedule_count': 'Reschedules',
-            'total_delay_days': 'Days Since First Planned',
-            'current_status': 'Current Status',
-            'current_job_id': 'Current Job ID'
-        }
-        
-        available_cols = {k: v for k, v in display_cols.items() if k in df_chains.columns}
-        df_display = df_chains[list(available_cols.keys())].rename(columns=available_cols)
-        
-        # Sort by reschedule count
-        if 'Reschedules' in df_display.columns:
-            df_display = df_display.sort_values('Reschedules', ascending=False)
-        
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
-        st.caption(f"Showing {len(df_display)} active product chains")
+        # 📦 Ready for Scan
+        st.markdown(f"""
+        <div class="bucket-header bucket-green">
+            <span>📦</span>
+            <div>
+                <div class="bucket-title">Ready for Scan</div>
+                <div class="bucket-desc">Arrived at dock — awaiting scan</div>
+            </div>
+            <span class="bucket-count kpi-green">{len(bucket_ready_scan)}</span>
+        </div>""", unsafe_allow_html=True)
+        bucket_table(bucket_ready_scan, DOCK_COLS)
+
+    with col_dispatch:
+        st.markdown("**Dispatch & Outbound**")
+
+        # 🟡 Ready for Routing
+        st.markdown(f"""
+        <div class="bucket-header bucket-amber">
+            <span>🟡</span>
+            <div>
+                <div class="bucket-title">ACTION: Ready for Routing</div>
+                <div class="bucket-desc">Scanned — needs driver assignment</div>
+            </div>
+            <span class="bucket-count kpi-amber">{len(bucket_ready_route)}</span>
+        </div>""", unsafe_allow_html=True)
+        bucket_table(bucket_ready_route, DISPATCH_COLS)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # 🟢 In Transit
+        st.markdown(f"""
+        <div class="bucket-header bucket-blue">
+            <span>🟢</span>
+            <div>
+                <div class="bucket-title">In Transit</div>
+                <div class="bucket-desc">Scanned + driver assigned</div>
+            </div>
+            <span class="bucket-count kpi-blue">{len(bucket_in_transit)}</span>
+        </div>""", unsafe_allow_html=True)
+        bucket_table(bucket_in_transit, TRANSIT_COLS)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — RESCHEDULES
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_reschedules:
+    st.markdown("### 🔁 Rescheduled Jobs")
+    st.markdown("*Jobs sharing the same Product Serial Number — likely rescheduled deliveries.*")
+
+    if 'Product_Serial' not in df.columns:
+        st.info("Product Serial column not available in this dataset.")
     else:
-        st.info("No active reschedule chains found. Run the daily import to populate chain data.")
-    
-    # Rescheduled Jobs in Current View
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <div style="width:4px; height:18px; background:#60A5FA; border-radius:2px;"></div>
-            <h4 style="margin:0; color:#F0F2F5;">📅 Rescheduled Jobs in Current View</h4>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # Filter for rescheduled jobs in current view
-    if 'Status' in df_filtered.columns:
-        rescheduled_mask = df_filtered['Status'].str.lower().str.contains('resched', na=False)
-        df_rescheduled = df_filtered[rescheduled_mask].copy()
-        
-        if not df_rescheduled.empty:
-            resched_cols = {
-                'Job_ID': 'Job ID',
-                'Product_Serial': 'Serial',
-                'Carrier': 'Carrier',
-                'Status': 'Status',
-                'Planned_Date': 'Planned Date',
-                'Product_Name': 'Product',
-                'State': 'State'
-            }
-            available_resched = {k: v for k, v in resched_cols.items() if k in df_rescheduled.columns}
-            df_resched_display = df_rescheduled[list(available_resched.keys())].rename(columns=available_resched)
-            
-            st.dataframe(df_resched_display, use_container_width=True, hide_index=True)
-            st.caption(f"{len(df_resched_display)} rescheduled jobs in current filter")
+        valid = df[
+            df['Product_Serial'].notna() &
+            ~df['Product_Serial'].astype(str).str.lower().isin(['', 'nan', 'none'])
+        ]
+        dupes = valid[valid.duplicated('Product_Serial', keep=False)]
+
+        if dupes.empty:
+            st.success("✅ No rescheduled jobs detected.")
         else:
-            st.success("✅ No rescheduled jobs in the current view.")
-    else:
-        st.info("Status data not available for reschedule filtering.")
+            dupes = dupes.sort_values('Product_Serial')
+            disp_cols = [c for c in ['Product_Serial', 'Job_ID', 'Product_Name',
+                                      'Planned_Date', 'Status', 'Carrier', 'State']
+                         if c in dupes.columns]
+            st.warning(f"⚠️ {dupes['Product_Serial'].nunique()} product(s) appear on multiple jobs.")
+            st.dataframe(dupes[disp_cols].reset_index(drop=True),
+                         use_container_width=True, hide_index=True)
+
+        # Job chain alerts from Supabase
+        try:
+            supabase_client_obj = SupabaseClient()
+            chain_alerts = get_chain_alerts(supabase_client_obj.client)
+            if chain_alerts:
+                st.markdown("---")
+                st.markdown(f"### 🔗 Chain Alerts ({len(chain_alerts)})")
+                for alert in chain_alerts[:20]:
+                    severity_icon = "🔴" if alert.get('severity') == 'critical' else "🟡"
+                    st.markdown(
+                        f"<div class='alert-row'>{severity_icon} {alert.get('message', str(alert))}</div>",
+                        unsafe_allow_html=True
+                    )
+        except Exception:
+            pass  # Chain alerts are optional
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — FULL JOB LIST
-# ═══════════════════════════════════════════════════════════════════════════════
-with tab_list:
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_full:
+    st.markdown(f"### 📄 Full Job List — {len(df)} active jobs")
 
-    st.markdown("""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-            <div style="width:4px; height:22px; background:#808285; border-radius:2px;"></div>
-            <h3 style="margin:0; color:#F0F2F5;">Full Job List</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    # Visual status column
+    def visual_status(row):
+        is_scanned = False
+        if 'Last_Scan_User' in row and str(row.get('Last_Scan_User', '')).strip() not in ['', 'nan']:
+            is_scanned = True
+        if 'Scan_Count' in row and pd.to_numeric(row.get('Scan_Count', 0), errors='coerce') > 0:
+            is_scanned = True
 
-    df_list = df_filtered.copy()
+        is_routed  = bool(row.get('Is_Routed', False))
+        is_arrived = pd.notna(row.get('Actual_Date')) if 'Actual_Date' in row.index else False
 
-    def get_status_emoji(row):
-        s = str(row.get('Status', '')).lower()
-        if s in ['delivered', 'complete', 'completed']: return "🟢 Complete"
-        if s in ['manifested', 'created']:               return "⚪ Scheduled"
-        driver = str(row.get('Assigned_Driver', '')).strip()
-        scan   = str(row.get('Last_Scan_User', '')).strip()
-        if driver and driver not in ('nan', 'None', ''):
-            return "⚠️ Routed (No Scan)" if (not scan or scan in ('nan', 'None', '')) else "🟡 Routed"
-        if scan and scan not in ('nan', 'None', ''):
-            return "🔵 Scanned"
-        return "⚪ Planned"
+        if is_routed and not is_scanned:   return "🔴 Routed Exception"
+        if is_scanned and is_routed:       return "🟢 In Transit"
+        if is_scanned and not is_routed:   return "🟡 Ready for Routing"
+        if is_arrived and not is_scanned:  return "📦 Ready for Scan"
+        return "⬜ Manifested"
 
-    df_list['Visual_Status'] = df_list.apply(get_status_emoji, axis=1)
+    df_display = df.copy()
+    df_display['Status_Visual'] = df_display.apply(visual_status, axis=1)
 
-    target_cols = {
-        'Visual_Status':  'Status',
-        'Job_ID':         'Job ID',
-        'Carrier':        'Carrier',
-        'Product_Name':   'Product',
-        'Planned_Date':   'Planned',
-        'Actual_Date':    'Actual Arrival',
-        'Assigned_Driver':'Driver',
-        'Last_Scan_User': 'Scanner',
-        'State':          'State',
-    }
-    final_list_cols = {k: v for k, v in target_cols.items() if k in df_list.columns}
-    df_list_view    = df_list[list(final_list_cols.keys())].rename(columns=final_list_cols)
+    display_cols = [c for c in [
+        'Status_Visual', 'Job_ID', 'Product_Name', 'Product_Serial',
+        'Planned_Date', 'Actual_Date', 'Carrier', 'State',
+        'Last_Scan_User', 'Assigned_Driver', 'White_Glove', 'Stop_Number'
+    ] if c in df_display.columns]
 
-    st.caption(f"Showing {len(df_list_view):,} jobs matching current filters.")
-    st.dataframe(df_list_view, use_container_width=True, hide_index=True)
+    st.dataframe(
+        df_display[display_cols].reset_index(drop=True),
+        use_container_width=True,
+        hide_index=True,
+        height=600
+    )
+
+    # Download button
+    csv = df_display[display_cols].to_csv(index=False)
+    st.download_button(
+        label="⬇️ Download CSV",
+        data=csv,
+        file_name=f"active_jobs_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
