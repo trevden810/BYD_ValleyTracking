@@ -395,43 +395,27 @@ with tab_board:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_reschedules:
     st.markdown("### 🔁 Rescheduled Jobs")
-    st.markdown("*Jobs sharing the same Product Serial Number — likely rescheduled deliveries.*")
+    st.markdown("*Jobs with a 'Re-scheduled' status in FileMaker — still active but date has changed.*")
 
-    if 'Product_Serial' not in df.columns:
-        st.info("Product Serial column not available in this dataset.")
+    if 'Status' not in df.columns:
+        st.info("Status column not available in this dataset.")
     else:
-        valid = df[
-            df['Product_Serial'].notna() &
-            ~df['Product_Serial'].astype(str).str.lower().isin(['', 'nan', 'none'])
+        rescheduled = df[
+            df['Status'].astype(str).str.lower().str.strip().str.contains('re-schedul|reschedul', na=False)
         ]
-        dupes = valid[valid.duplicated('Product_Serial', keep=False)]
 
-        if dupes.empty:
-            st.success("✅ No rescheduled jobs detected.")
+        if rescheduled.empty:
+            st.success("✅ No re-scheduled jobs in the current date range.")
         else:
-            dupes = dupes.sort_values('Product_Serial')
-            disp_cols = [c for c in ['Product_Serial', 'Job_ID', 'Product_Name',
-                                      'Planned_Date', 'Status', 'Carrier', 'State']
-                         if c in dupes.columns]
-            st.warning(f"⚠️ {dupes['Product_Serial'].nunique()} product(s) appear on multiple jobs.")
-            st.dataframe(dupes[disp_cols].reset_index(drop=True),
+            st.warning(f"⚠️ {len(rescheduled)} re-scheduled job(s) found.")
+            disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Product_Serial',
+                                      'Planned_Date', 'Status', 'Carrier', 'State',
+                                      'Last_Scan_User', 'Assigned_Driver']
+                         if c in rescheduled.columns]
+            st.dataframe(rescheduled[disp_cols].reset_index(drop=True),
                          use_container_width=True, hide_index=True)
 
-        # Job chain alerts from Supabase
-        try:
-            supabase_client_obj = SupabaseClient()
-            chain_alerts = get_chain_alerts(supabase_client_obj.client)
-            if chain_alerts:
-                st.markdown("---")
-                st.markdown(f"### 🔗 Chain Alerts ({len(chain_alerts)})")
-                for alert in chain_alerts[:20]:
-                    severity_icon = "🔴" if alert.get('severity') == 'critical' else "🟡"
-                    st.markdown(
-                        f"<div class='alert-row'>{severity_icon} {alert.get('message', str(alert))}</div>",
-                        unsafe_allow_html=True
-                    )
-        except Exception:
-            pass  # Chain alerts are optional
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
