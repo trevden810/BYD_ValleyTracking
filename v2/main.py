@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from v2.data_processor import load_manual_export, process_data, calculate_kpis
+from v2.data_processor import load_manual_export, process_data, calculate_kpis, deduplicate_jobs
 from v2.supabase_client import SupabaseClient
 from v2.email_generator import generate_html_report, send_email
 from v2.comparator import compare_snapshots
@@ -49,8 +49,12 @@ def main(export_filepath: str = None, dry_run: bool = False):
     # Step 1: Load and process data
     try:
         df_raw = load_manual_export(export_filepath)
-        df_processed = process_data(df_raw)
-        print(f"[OK] Processed {len(df_processed)} records")
+        df_processed_raw = process_data(df_raw)
+        
+        # Deduplicate jobs (new step)
+        df_processed = deduplicate_jobs(df_processed_raw)
+        
+        print(f"[OK] Processed {len(df_processed)} unique records (from {len(df_processed_raw)} raw)")
     except Exception as e:
         print(f"[ERROR] Error loading/processing data: {e}")
         return False

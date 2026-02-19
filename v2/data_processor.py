@@ -235,6 +235,58 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
     return processed
 
 
+def deduplicate_jobs(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Removes duplicate jobs based on Product Serial Number.
+    Keeps only the most recent job for each serial (based on Planned_Date).
+    
+    Args:
+        df: Processed DataFrame
+        
+    Returns:
+        DataFrame with duplicates removed
+    """
+    if df.empty or 'Product_Serial' not in df.columns:
+        return df
+        
+    # Filter for valid serials
+    # (We only dedup if there is a valid serial, otherwise we keep them)
+    # Actually, if there is no serial, we can't dedup, so we leave them alone.
+    
+    # Separate records with no serial (keep all of them)
+    no_serial = df[
+        (df['Product_Serial'].isna()) | 
+        (df['Product_Serial'] == '') | 
+        (df['Product_Serial'].astype(str).str.lower() == 'nan') |
+        (df['Product_Serial'].astype(str).str.lower() == 'none')
+    ].copy()
+    
+    # Records with serial (deduplicate these)
+    has_serial = df[~df.index.isin(no_serial.index)].copy()
+    
+    if has_serial.empty:
+        return df
+        
+    # Sort by Planned_Date descending so the first one is the "latest"
+    # If Planned_Date is missing, maybe sort by creation? But we don't have creation.
+    # We'll rely on Planned_Date.
+    if 'Planned_Date' in has_serial.columns:
+        has_serial = has_serial.sort_values('Planned_Date', ascending=False, na_position='last')
+        
+    # Drop duplicates, keeping the first (latest)
+    deduped = has_serial.drop_duplicates(subset=['Product_Serial'], keep='first')
+    
+    # Combine back
+    result = pd.concat([deduped, no_serial])
+    
+    # Report
+    removed_count = len(df) - len(result)
+    if removed_count > 0:
+        print(f"[INFO] Deduplicated jobs: Removed {removed_count} redundant records based on Product Serial")
+        
+    return result
+
+
 def calculate_kpis(df: pd.DataFrame) -> Dict:
     """
     Calculates key performance indicators from processed data.
