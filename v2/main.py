@@ -50,9 +50,9 @@ def main(export_filepath: str = None, dry_run: bool = False):
     try:
         df_raw = load_manual_export(export_filepath)
         df_processed = process_data(df_raw)
-        print(f"✓ Processed {len(df_processed)} records")
+        print(f"[OK] Processed {len(df_processed)} records")
     except Exception as e:
-        print(f"❌ Error loading/processing data: {e}")
+        print(f"[ERROR] Error loading/processing data: {e}")
         return False
     
     # Step 2: Calculate KPIs
@@ -65,7 +65,7 @@ def main(export_filepath: str = None, dry_run: bool = False):
         print(f"  Overdue: {kpis['overdue_count']}")
         print(f"  Ready for Routing: {kpis['ready_for_routing']}")
     except Exception as e:
-        print(f"❌ Error calculating KPIs: {e}")
+        print(f"[ERROR] Error calculating KPIs: {e}")
         return False
     
     # Step 3: Supabase integration & Delta Calculation
@@ -113,15 +113,15 @@ def main(export_filepath: str = None, dry_run: bool = False):
             
             # Get trends
             trends = supabase.compare_with_history(kpis)
-            print(f"✓ Data stored in Supabase with trend analysis")
+            print(f"[OK] Data stored in Supabase with trend analysis")
         else:
-            print("\n⚠ DRY RUN: Skipping Supabase WRITE (Read-only for deltas)")
+            print("\n[WARN] DRY RUN: Skipping Supabase WRITE (Read-only for deltas)")
             # In dry run, we still calculated deltas from history if available
-            trends = {key: '→' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}
+            trends = {key: '->' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}
             
     except Exception as e:
-        print(f"⚠ Supabase error (continuing without trends/deltas): {e}")
-        trends = {key: '→' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}
+        print(f"[WARN] Supabase error (continuing without trends/deltas): {e}")
+        trends = {key: '->' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}
         deltas = {'new_jobs': [], 'new_arrivals': [], 'new_deliveries': [], 'new_overdue': []}
     
     # Step 4: Generate HTML report

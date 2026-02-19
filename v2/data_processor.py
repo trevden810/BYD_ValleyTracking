@@ -23,7 +23,7 @@ def load_manual_export(filepath: str) -> pd.DataFrame:
     """
     try:
         df = pd.read_excel(filepath)
-        print(f"✓ Loaded {len(df)} records with {len(df.columns)} columns")
+        print(f"[OK] Loaded {len(df)} records with {len(df.columns)} columns")
         return df
     except FileNotFoundError:
         raise FileNotFoundError(f"Export file not found: {filepath}")
@@ -72,7 +72,7 @@ def parse_scan_data(json_str: str) -> List[Dict]:
         
         return scans
     except json.JSONDecodeError:
-        print(f"⚠ Unable to parse scan JSON: {json_str[:50]}...")
+        print(f"[WARN] Unable to parse scan JSON: {json_str[:50]}...")
         return []
 
 
@@ -290,11 +290,11 @@ if __name__ == "__main__":
         processed = process_data(df)
         kpis = calculate_kpis(processed)
         
-        print("\n📊 KPI Summary:")
+        print("\n[KPI Summary]:")
         for key, value in kpis.items():
             print(f"  {key}: {value}")
         
-        print("\n✓ Data processor test complete!")
+        print("\n[OK] Data processor test complete!")
         
     except Exception as e:
-        print(f"❌ Test failed: {e}")
+        print(f"[ERROR] Test failed: {e}")

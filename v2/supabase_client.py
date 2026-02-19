@@ -68,10 +68,10 @@ class SupabaseClient:
         
         try:
             result = self.client.table('job_snapshots').insert(records).execute()
-            print(f"✓ Inserted {len(records)} records into job_snapshots")
+            print(f"[OK] Inserted {len(records)} records into job_snapshots")
             return len(records)
         except Exception as e:
-            print(f"❌ Error inserting snapshot: {e}")
+            print(f"[ERROR] Error inserting snapshot: {e}")
             return 0
     
     def insert_kpis(self, kpis: Dict, report_date: datetime = None) -> bool:
@@ -102,10 +102,10 @@ class SupabaseClient:
             # Use upsert to handle re-runs on the same day
             # on_conflict='report_date' ensures we update the existing record for today
             self.client.table('kpi_history').upsert(record, on_conflict='report_date').execute()
-            print(f"✓ Inserted/Updated KPIs for {report_date}")
+            print(f"[OK] Inserted/Updated KPIs for {report_date}")
             return True
         except Exception as e:
-            print(f"❌ Error inserting KPIs: {e}")
+            print(f"[ERROR] Error inserting KPIs: {e}")
             return False
     
     def get_latest_snapshot(self) -> Optional[pd.DataFrame]:
@@ -124,7 +124,7 @@ class SupabaseClient:
                 .execute()
             
             if not date_query.data:
-                print("⚠ No previous snapshot found")
+                print("[WARN] No previous snapshot found")
                 return None
                 
             latest_date = date_query.data[0]['snapshot_date']
@@ -158,13 +158,13 @@ class SupabaseClient:
             
             if all_records:
                 df = pd.DataFrame(all_records)
-                print(f"✓ Retrieved {len(df)} records from snapshot {latest_date}")
+                print(f"[OK] Retrieved {len(df)} records from snapshot {latest_date}")
                 return df
             else:
                 return None
                 
         except Exception as e:
-            print(f"❌ Error retrieving snapshot: {e}")
+            print(f"[ERROR] Error retrieving snapshot: {e}")
             return None
 
     def get_snapshot_by_date(self, target_date: datetime.date) -> Optional[pd.DataFrame]:
@@ -253,14 +253,14 @@ class SupabaseClient:
                 if 'Is_Routed' not in df.columns:
                      df['Is_Routed'] = False
 
-                print(f"✓ Retrieved {len(df)} records for date {target_date}")
+                print(f"[OK] Retrieved {len(df)} records for date {target_date}")
                 return df
             else:
-                print(f"⚠ No snapshot found for {target_date}")
+                print(f"[WARN] No snapshot found for {target_date}")
                 return None
                 
         except Exception as e:
-            print(f"❌ Error retrieving snapshot for date {target_date}: {e}")
+            print(f"[ERROR] Error retrieving snapshot for date {target_date}: {e}")
             return None
     
     def get_historical_kpis(self, days: int = 30) -> Optional[pd.DataFrame]:
@@ -285,13 +285,13 @@ class SupabaseClient:
             if result.data:
                 df = pd.DataFrame(result.data)
                 df['report_date'] = pd.to_datetime(df['report_date'])
-                print(f"✓ Retrieved {len(df)} days of KPI history")
+                print(f"[OK] Retrieved {len(df)} days of KPI history")
                 return df
             else:
-                print("⚠ No KPI history found")
+                print("[WARN] No KPI history found")
                 return None
         except Exception as e:
-            print(f"❌ Error retrieving KPI history: {e}")
+            print(f"[ERROR] Error retrieving KPI history: {e}")
             return None
     
     def compare_with_history(self, current_kpis: Dict) -> Dict:
@@ -307,7 +307,7 @@ class SupabaseClient:
         history = self.get_historical_kpis(days=7)
         
         if history is None or len(history) < 2:
-            return {key: '→' for key in current_kpis.keys()}
+            return {key: '->' for key in current_kpis.keys()}
         
         # Get previous value (most recent before today)
         previous = history.iloc[-2]
@@ -321,19 +321,19 @@ class SupabaseClient:
                 # For avg_delay_days and overdue_count, lower is better
                 if key in ['avg_delay_days', 'overdue_count']:
                     if current < prev:
-                        trends[key] = '↓ (Improved)'
+                        trends[key] = 'v (Improved)'
                     elif current > prev:
-                        trends[key] = '↑ (Worsened)'
+                        trends[key] = '^ (Worsened)'
                     else:
-                        trends[key] = '→ (Stable)'
+                        trends[key] = '-> (Stable)'
                 else:
                     # For on_time_pct, higher is better
                     if current > prev:
-                        trends[key] = '↑ (Improved)'
+                        trends[key] = '^ (Improved)'
                     elif current < prev:
-                        trends[key] = '↓ (Worsened)'
+                        trends[key] = 'v (Worsened)'
                     else:
-                        trends[key] = '→ (Stable)'
+                        trends[key] = '-> (Stable)'
         
         return trends
 

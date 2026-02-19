@@ -44,7 +44,7 @@ def detect_chains(df: pd.DataFrame) -> Dict[str, List[str]]:
         Dict mapping product_serial -> list of job_ids (sorted by planned date)
     """
     if 'Product_Serial' not in df.columns or 'Job_ID' not in df.columns:
-        print("⚠ Missing required columns for chain detection")
+        print("[WARN] Missing required columns for chain detection")
         return {}
     
     # Filter to jobs with valid serial numbers
@@ -56,7 +56,7 @@ def detect_chains(df: pd.DataFrame) -> Dict[str, List[str]]:
     ].copy()
     
     if valid_serials.empty:
-        print("⚠ No jobs with valid product serial numbers found")
+        print("[WARN] No jobs with valid product serial numbers found")
         return {}
     
     # Group by serial number
@@ -70,7 +70,7 @@ def detect_chains(df: pd.DataFrame) -> Dict[str, List[str]]:
             
             chains[str(serial)] = group['Job_ID'].tolist()
     
-    print(f"✓ Detected {len(chains)} potential job chains")
+    print(f"[OK] Detected {len(chains)} potential job chains")
     return chains
 
 
@@ -157,7 +157,7 @@ class JobChainManager:
                 return result.data[0]
             return None
         except Exception as e:
-            print(f"⚠ Error checking existing chain: {e}")
+            print(f"[WARN] Error checking existing chain: {e}")
             return None
     
     def create_chain(self, product_serial: str, carrier: str = None) -> Optional[str]:
@@ -184,7 +184,7 @@ class JobChainManager:
             if result.data:
                 return result.data[0].get('chain_id')
         except Exception as e:
-            print(f"⚠ Error creating chain: {e}")
+            print(f"[WARN] Error creating chain: {e}")
         return None
     
     def add_job_to_chain(self, chain_id: str, job_id: str, sequence_order: int,
@@ -225,7 +225,7 @@ class JobChainManager:
             ).execute()
             return True
         except Exception as e:
-            print(f"⚠ Error adding job to chain: {e}")
+            print(f"[WARN] Error adding job to chain: {e}")
             return False
     
     def update_chain_metadata(self, chain_id: str, metrics: Dict) -> bool:
@@ -257,7 +257,7 @@ class JobChainManager:
                 .execute()
             return True
         except Exception as e:
-            print(f"⚠ Error updating chain metadata: {e}")
+            print(f"[WARN] Error updating chain metadata: {e}")
             return False
     
     def get_active_chains(self, min_reschedules: int = 0) -> List[Dict]:
@@ -281,7 +281,7 @@ class JobChainManager:
             result = query.order('reschedule_count', desc=True).execute()
             return result.data or []
         except Exception as e:
-            print(f"⚠ Error fetching active chains: {e}")
+            print(f"[WARN] Error fetching active chains: {e}")
             return []
     
     def get_chain_links(self, chain_id: str) -> List[Dict]:
@@ -302,7 +302,7 @@ class JobChainManager:
                 .execute()
             return result.data or []
         except Exception as e:
-            print(f"⚠ Error fetching chain links: {e}")
+            print(f"[WARN] Error fetching chain links: {e}")
             return []
 
 
@@ -326,14 +326,14 @@ def process_job_chains(df: pd.DataFrame, supabase_client: Client) -> Dict:
     }
     
     if df.empty:
-        print("⚠ Empty DataFrame, skipping chain processing")
+        print("[WARN] Empty DataFrame, skipping chain processing")
         return stats
     
     # Check required columns
     required = ['Job_ID', 'Product_Serial']
     missing = [col for col in required if col not in df.columns]
     if missing:
-        print(f"⚠ Missing required columns for chain processing: {missing}")
+        print(f"[WARN] Missing required columns for chain processing: {missing}")
         return stats
     
     # Filter to jobs with valid serial numbers
@@ -345,7 +345,7 @@ def process_job_chains(df: pd.DataFrame, supabase_client: Client) -> Dict:
     ].copy()
     
     if valid_jobs.empty:
-        print("⚠ No jobs with valid product serial numbers")
+        print("[WARN] No jobs with valid product serial numbers")
         return stats
     
     manager = JobChainManager(supabase_client)
@@ -400,10 +400,10 @@ def process_job_chains(df: pd.DataFrame, supabase_client: Client) -> Dict:
             stats['chains_processed'] += 1
             
         except Exception as e:
-            print(f"⚠ Error processing chain for serial {serial_str}: {e}")
+            print(f"[WARN] Error processing chain for serial {serial_str}: {e}")
             stats['errors'] += 1
     
-    print(f"✓ Chain processing complete: {stats['chains_processed']} chains, "
+    print(f"[OK] Chain processing complete: {stats['chains_processed']} chains, "
           f"{stats['jobs_linked']} jobs linked, {stats['new_chains_created']} new")
     
     return stats
@@ -464,7 +464,7 @@ def get_chain_alerts(supabase_client: Client) -> List[Dict]:
             })
         
     except Exception as e:
-        print(f"⚠ Error fetching chain alerts: {e}")
+        print(f"[WARN] Error fetching chain alerts: {e}")
     
     return alerts
 
