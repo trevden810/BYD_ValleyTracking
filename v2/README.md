@@ -11,6 +11,7 @@ pip install -r v2/requirements_v2.txt
 ### 2. Configure Supabase
 - Follow instructions in `v2/SUPABASE_SETUP.md`
 - Add your credentials to `.env`
+- **NEW:** Run `v2/setup_job_chains.sql` for reschedule tracking
 
 ### 3. Configure Email
 Update `.env` with:
@@ -49,6 +50,12 @@ python v2/main.py --file path/to/your/export.xlsx
 - Tracks KPI trends over time
 - Provides trend indicators (↑↓→)
 
+### ✅ Job Chain Tracking (NEW)
+- Tracks rescheduled jobs by product serial number
+- Alerts for products with 3+ reschedules
+- Dashboard tab for reschedule monitoring
+- See `v2/JOB_CHAINS_GUIDE.md` for details
+
 ### ✅ Email Reports
 - Professional HTML design
 - Embedded charts (funnel, timeline)
@@ -80,6 +87,10 @@ python v2/main.py --file path/to/your/export.xlsx
 - Update `EXPORT_FILE_PATH` in `.env`
 - Or use `--file` argument
 
+### "No active reschedule chains found"
+- Run `v2/setup_job_chains.sql` in Supabase
+- Run daily import to populate chain data
+
 ## Architecture
 
 ```
@@ -88,7 +99,12 @@ v2/
 ├── data_processor.py          # Excel import & processing
 ├── supabase_client.py         # Database integration
 ├── email_generator.py         # Report generation
+├── job_chains.py              # Reschedule tracking (NEW)
+├── comparator.py              # Delta detection
 ├── templates/
 │   └── email_report.html      # Email template
-└── SUPABASE_SETUP.md         # Database setup
+├── setup_supabase.sql         # Core database schema
+├── setup_job_chains.sql       # Chain tracking schema (NEW)
+├── SUPABASE_SETUP.md          # Database setup guide
+└── JOB_CHAINS_GUIDE.md        # Reschedule tracking guide (NEW)
 ```

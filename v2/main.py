@@ -22,6 +22,7 @@ from v2.data_processor import load_manual_export, process_data, calculate_kpis
 from v2.supabase_client import SupabaseClient
 from v2.email_generator import generate_html_report, send_email
 from v2.comparator import compare_snapshots
+from v2.job_chains import process_job_chains, get_chain_alerts
 
 
 def main(export_filepath: str = None, dry_run: bool = False):
@@ -95,6 +96,20 @@ def main(export_filepath: str = None, dry_run: bool = False):
             
             # Insert KPIs
             supabase.insert_kpis(kpis)
+            
+            # Process job chains (reschedule tracking)
+            print("\nProcessing job chains...")
+            chain_stats = process_job_chains(df_processed, supabase.client)
+            if chain_stats.get('chains_processed', 0) > 0:
+                print(f"  Chains: {chain_stats['chains_processed']} processed, "
+                      f"{chain_stats['new_chains_created']} new")
+            
+            # Get chain alerts
+            chain_alerts = get_chain_alerts(supabase.client)
+            if chain_alerts:
+                critical = len([a for a in chain_alerts if a['severity'] == 'critical'])
+                warning = len([a for a in chain_alerts if a['severity'] == 'warning'])
+                print(f"  Chain Alerts: {critical} critical, {warning} warnings")
             
             # Get trends
             trends = supabase.compare_with_history(kpis)

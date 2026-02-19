@@ -2,8 +2,13 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 from utils.api import get_token, fetch_jobs, process_data, fetch_jobs_from_excel
 from v2.supabase_client import SupabaseClient
+from v2.job_chains import get_chain_alerts, JobChainManager
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ── Page Config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -180,9 +185,10 @@ if 'White_Glove' in df_filtered.columns:
     wg_pending_n = int(wg_mask.sum())
 
 # ── Tab Navigation ────────────────────────────────────────────────────────────
-tab_dash, tab_board, tab_list = st.tabs([
+tab_dash, tab_board, tab_reschedule, tab_list = st.tabs([
     "📊  Dashboard",
     "📋  Job Board",
+    "🔄  Reschedules",
     "📝  Full Job List"
 ])
 
@@ -340,7 +346,173 @@ with tab_board:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — FULL JOB LIST
+# TAB 3 — RESCHEDULE TRACKER
+# ═══════════════════════════════════════════════════════════════════════════════
+with tab_reschedule:
+
+    st.markdown("""
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+            <div style="width:4px; height:22px; background:#F59E0B; border-radius:2px;"></div>
+            <h3 style="margin:0; color:#F0F2F5;">Reschedule Tracker</h3>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+        <p style="color:#9EA3A8; font-size:0.85rem; margin-bottom:16px;">
+            Track jobs that have been rescheduled. Products are linked by serial number 
+            to show the complete history of reschedules.
+        </p>
+    """, unsafe_allow_html=True)
+
+    # Try to load chain data from Supabase
+    chain_alerts = []
+    active_chains = []
+    
+    try:
+        supabase_client = SupabaseClient()
+        chain_alerts = get_chain_alerts(supabase_client.client)
+        
+        # Get all active chains
+        manager = JobChainManager(supabase_client.client)
+        active_chains = manager.get_active_chains()
+        
+    except Exception as e:
+        st.warning(f"⚠️ Unable to load chain data from database: {str(e)[:50]}...")
+        chain_alerts = []
+        active_chains = []
+
+    # KPI Cards for Reschedules
+    r_col1, r_col2, r_col3, r_col4 = st.columns(4)
+    
+    total_chains = len(active_chains)
+    critical_count = len([a for a in chain_alerts if a['severity'] == 'critical'])
+    warning_count = len([a for a in chain_alerts if a['severity'] == 'warning'])
+    high_freq_count = len([c for c in active_chains if c.get('reschedule_count', 0) >= 2])
+    
+    r_col1.metric("Active Chains", f"{total_chains}", "Products tracked")
+    r_col2.metric("Critical Alerts", f"{critical_count}", "3+ reschedules", delta_color="inverse")
+    r_col3.metric("Warnings", f"{warning_count}", "2 reschedules or 14+ days", delta_color="inverse")
+    r_col4.metric("High Frequency", f"{high_freq_count}", "2+ reschedules")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Alerts Section
+    if chain_alerts:
+        st.markdown("""
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <div style="width:4px; height:18px; background:#EF4444; border-radius:2px;"></div>
+                <h4 style="margin:0; color:#F0F2F5;">⚠️ Chain Alerts</h4>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        for alert in chain_alerts[:10]:  # Show top 10 alerts
+            severity_color = "#EF4444" if alert['severity'] == 'critical' else "#F59E0B"
+            severity_icon = "🚨" if alert['severity'] == 'critical' else "⚠️"
+            
+            st.markdown(f"""
+                <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
+                            border-left:3px solid {severity_color}; border-radius:6px;
+                            padding:10px 14px; margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="font-size:1.1rem;">{severity_icon}</span>
+                            <span style="font-weight:600; color:#F0F2F5; margin-left:8px;">
+                                {alert.get('product_serial', 'N/A')}
+                            </span>
+                            <span style="color:#808285; margin-left:12px; font-size:0.8rem;">
+                                {alert.get('carrier', '')}
+                            </span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="background:{severity_color}; color:white; padding:2px 8px; 
+                                        border-radius:4px; font-size:0.7rem; font-weight:600;">
+                                {alert.get('reschedule_count', 0)} reschedules
+                            </span>
+                        </div>
+                    </div>
+                    <div style="color:#9EA3A8; font-size:0.8rem; margin-top:6px;">
+                        {alert.get('message', '')}
+                        {f" • Current Job: {alert.get('current_job_id', '')}" if alert.get('current_job_id') else ''}
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        if len(chain_alerts) > 10:
+            st.caption(f"...and {len(chain_alerts) - 10} more alerts")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    # Active Chains Table
+    st.markdown("""
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div style="width:4px; height:18px; background:#8DC63F; border-radius:2px;"></div>
+            <h4 style="margin:0; color:#F0F2F5;">📋 All Active Chains</h4>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    if active_chains:
+        # Convert to DataFrame for display
+        df_chains = pd.DataFrame(active_chains)
+        
+        # Select and rename columns
+        display_cols = {
+            'product_serial': 'Serial Number',
+            'carrier': 'Carrier',
+            'reschedule_count': 'Reschedules',
+            'total_delay_days': 'Days Since First Planned',
+            'current_status': 'Current Status',
+            'current_job_id': 'Current Job ID'
+        }
+        
+        available_cols = {k: v for k, v in display_cols.items() if k in df_chains.columns}
+        df_display = df_chains[list(available_cols.keys())].rename(columns=available_cols)
+        
+        # Sort by reschedule count
+        if 'Reschedules' in df_display.columns:
+            df_display = df_display.sort_values('Reschedules', ascending=False)
+        
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        st.caption(f"Showing {len(df_display)} active product chains")
+    else:
+        st.info("No active reschedule chains found. Run the daily import to populate chain data.")
+    
+    # Rescheduled Jobs in Current View
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <div style="width:4px; height:18px; background:#60A5FA; border-radius:2px;"></div>
+            <h4 style="margin:0; color:#F0F2F5;">📅 Rescheduled Jobs in Current View</h4>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Filter for rescheduled jobs in current view
+    if 'Status' in df_filtered.columns:
+        rescheduled_mask = df_filtered['Status'].str.lower().str.contains('resched', na=False)
+        df_rescheduled = df_filtered[rescheduled_mask].copy()
+        
+        if not df_rescheduled.empty:
+            resched_cols = {
+                'Job_ID': 'Job ID',
+                'Product_Serial': 'Serial',
+                'Carrier': 'Carrier',
+                'Status': 'Status',
+                'Planned_Date': 'Planned Date',
+                'Product_Name': 'Product',
+                'State': 'State'
+            }
+            available_resched = {k: v for k, v in resched_cols.items() if k in df_rescheduled.columns}
+            df_resched_display = df_rescheduled[list(available_resched.keys())].rename(columns=available_resched)
+            
+            st.dataframe(df_resched_display, use_container_width=True, hide_index=True)
+            st.caption(f"{len(df_resched_display)} rescheduled jobs in current filter")
+        else:
+            st.success("✅ No rescheduled jobs in the current view.")
+    else:
+        st.info("Status data not available for reschedule filtering.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — FULL JOB LIST
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_list:
 
