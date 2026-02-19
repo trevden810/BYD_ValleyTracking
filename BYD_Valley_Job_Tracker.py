@@ -59,30 +59,44 @@ today = datetime.now().date()
 
 @st.cache_data(ttl=900)
 def load_data(target_date):
+    df = pd.DataFrame()
+
     # 1. Try Supabase (Primary Source for ALL dates)
     try:
         client = SupabaseClient()
-        df = client.get_snapshot_by_date(target_date)
-        if df is not None and not df.empty:
-            return df
+        result = client.get_snapshot_by_date(target_date)
+        if result is not None and not result.empty:
+            df = result
     except Exception as e:
         print(f"Error fetching from Supabase: {e}")
 
     # 2. Fallback to local file (Only for Today)
-    # Note: This is a fallback if Supabase is unreachable or empty
-    if target_date == datetime.now().date():
+    if df.empty and target_date == datetime.now().date():
         file_path = "bydhistorical.xlsx"
-        if not os.path.exists(file_path):
-            return pd.DataFrame()
-        try:
-            raw_data = fetch_jobs_from_excel(file_path)
-            df = process_data(raw_data)
-            return df
-        except Exception as e:
-            st.error(f"Error reading local file: {e}")
-            return pd.DataFrame()
-            
-    return pd.DataFrame()
+        if os.path.exists(file_path):
+            try:
+                raw_data = fetch_jobs_from_excel(file_path)
+                df = process_data(raw_data)
+            except Exception as e:
+                print(f"Error reading local file: {e}")
+
+    if df.empty:
+        return df
+
+    # ── Exclude Completed / Delivered Jobs ────────────────────────────────────
+    # These are stored in Supabase for history but should NOT appear in the UI.
+    # Check both 'Status' (post-mapping) and 'job_status' (raw Supabase column).
+    for col in ['Status', 'job_status', 'status']:
+        if col in df.columns:
+            exclude_mask = df[col].astype(str).str.lower().str.strip().str.contains(
+                'complete|deliver', na=False
+            )
+            before = len(df)
+            df = df[~exclude_mask]
+            print(f"[INFO] Excluded {before - len(df)} completed/delivered jobs (col='{col}')")
+            break  # Only filter once on the first matching column
+
+    return df
 
 selected_date = today
 df_main = load_data(selected_date)
@@ -128,29 +142,8 @@ with st.expander("🔍 Filters", expanded=True):
         show_unscanned_only = st.checkbox("Action Req", value=False)
 
 # ── Filter Logic ──────────────────────────────────────────────────────────────
+# Note: Completed/Delivered jobs are already excluded by load_data().
 df_filtered = df_main.copy()
-
-# Exclude Completed Jobs (Delivered / Complete)
-# User Request: These should be stored in DB but removed from active counts.
-# NOTE: Data from Supabase might have 'job_status' instead of 'Status'.
-if 'Status' not in df_filtered.columns and 'job_status' in df_filtered.columns:
-    df_filtered['Status'] = df_filtered['job_status']
-
-if 'Status' in df_filtered.columns:
-    # Aggressive filter: Remove anything containing "complete" or "deliver" (case-insensitive)
-    # This covers "Completed", "Complete", "Delivered", "Delivery Confirmed", etc.
-    status_str = df_filtered['Status'].astype(str).str.lower().str.strip()
-    mask_exclude = (
-        status_str.str.contains('complete', na=False) | 
-        status_str.str.contains('deliver', na=False)
-    )
-    df_filtered = df_filtered[~mask_exclude]
-    
-    # Debug: Print to console to verify
-    # print(f"Active jobs after filter: {len(df_filtered)}")
-else:
-    # Fallback if neither column exists (shouldn't happen with valid data)
-    pass
 
 # Date range
 if len(date_range) == 2:
