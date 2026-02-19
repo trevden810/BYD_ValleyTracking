@@ -132,11 +132,25 @@ df_filtered = df_main.copy()
 
 # Exclude Completed Jobs (Delivered / Complete)
 # User Request: These should be stored in DB but removed from active counts.
+# NOTE: Data from Supabase might have 'job_status' instead of 'Status'.
+if 'Status' not in df_filtered.columns and 'job_status' in df_filtered.columns:
+    df_filtered['Status'] = df_filtered['job_status']
+
 if 'Status' in df_filtered.columns:
-    # Normalize status to lower case for comparison
-    status_lower = df_filtered['Status'].astype(str).str.lower().str.strip()
-    # Filter OUT completed statuses
-    df_filtered = df_filtered[~status_lower.isin(['delivered', 'complete', 'completed'])]
+    # Aggressive filter: Remove anything containing "complete" or "deliver" (case-insensitive)
+    # This covers "Completed", "Complete", "Delivered", "Delivery Confirmed", etc.
+    status_str = df_filtered['Status'].astype(str).str.lower().str.strip()
+    mask_exclude = (
+        status_str.str.contains('complete', na=False) | 
+        status_str.str.contains('deliver', na=False)
+    )
+    df_filtered = df_filtered[~mask_exclude]
+    
+    # Debug: Print to console to verify
+    # print(f"Active jobs after filter: {len(df_filtered)}")
+else:
+    # Fallback if neither column exists (shouldn't happen with valid data)
+    pass
 
 # Date range
 if len(date_range) == 2:
