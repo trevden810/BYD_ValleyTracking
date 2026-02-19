@@ -287,6 +287,9 @@ with tab_dash:
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — JOB BOARD
 # ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — JOB BOARD
+# ═══════════════════════════════════════════════════════════════════════════════
 with tab_board:
 
     st.markdown("""
@@ -297,58 +300,118 @@ with tab_board:
     """, unsafe_allow_html=True)
 
     if 'Actual_Date' in df_filtered.columns and 'Last_Scan_User' in df_filtered.columns:
+        # masks
         arrived_mask  = df_filtered['Actual_Date'].notna()
         scanned_mask2 = (df_filtered['Last_Scan_User'].notna()) & (df_filtered['Last_Scan_User'] != '')
-
-        bucket_intake = df_filtered[arrived_mask & ~scanned_mask2]
+        routed_mask   = df_filtered['Assigned_Driver'].apply(lambda x: True if str(x).lower() not in ['nan','none','','unknown'] else False)
 
         if 'Status' in df_filtered.columns:
             completed_mask = df_filtered['Status'].str.lower().isin(['delivered', 'complete', 'completed'])
         else:
             completed_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+        
+        # 1. Routed Exception (Routed + NOT Scanned) -> CRITICAL
+        # Note: Must be arrived or planned? Usually check if it's "active". 
+        # For now, let's assume if it's visible in this filtered view (e.g. date range), it's fair game.
+        # But commonly we only care if it Arrived AND Routed but no scan? Or just Routed no scan?
+        # User request: "routed and not scanned" -> Red Flag.
+        bucket_routed_noscan = df_filtered[routed_mask & ~scanned_mask2 & ~completed_mask]
+        
+        # 2. Ready for Scan (Arrived + NOT Scanned + NOT Routed) -> Standard Intake
+        bucket_intake = df_filtered[arrived_mask & ~scanned_mask2 & ~routed_mask & ~completed_mask]
+        
+        # 3. Ready for Routing (Scanned + NOT Routed) -> CTA / Action Req
+        bucket_ready_routing = df_filtered[scanned_mask2 & ~routed_mask & ~completed_mask]
+        
+        # 4. In Transit (Scanned + Routed) -> Good
+        bucket_transit = df_filtered[scanned_mask2 & routed_mask & ~completed_mask]
 
-        bucket_progress = df_filtered[scanned_mask2 & ~completed_mask]
-
+        # ── Layout ──
+        # Left Column: Dock / Intake Issues
+        # Right Column: Outbound / Dispatch Flow
         b_col1, b_col2 = st.columns(2)
 
         with b_col1:
-            intake_count = len(bucket_intake)
-            color = "#EF4444" if intake_count > 0 else "#8DC63F"
-            st.markdown(f"""
-                <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
-                            border-left:3px solid {color}; border-radius:8px;
-                            padding:12px 16px; margin-bottom:12px;">
-                    <div style="font-size:0.72rem; color:#808285; text-transform:uppercase;
-                                letter-spacing:0.06em;">Ready for Scan</div>
-                    <div style="font-size:1.8rem; font-weight:700; color:{color};">{intake_count}</div>
-                    <div style="font-size:0.78rem; color:#9EA3A8;">Arrived at dock — action required</div>
-                </div>
-            """, unsafe_allow_html=True)
-            if not bucket_intake.empty:
-                cols_i = [c for c in ['Job_ID', 'Carrier', 'Product_Name', 'Actual_Date'] if c in bucket_intake.columns]
-                st.dataframe(bucket_intake[cols_i].head(50), use_container_width=True, hide_index=True)
-            else:
-                st.info("No items awaiting scan.")
-
-        with b_col2:
-            progress_count = len(bucket_progress)
+            st.caption("Dock & Intake Operations")
+            
+            # [A] Routed Exception (Critical)
+            count_exception = len(bucket_routed_noscan)
+            if count_exception > 0:
+                st.markdown(f"""
+                    <div style="background:#1E2124; border:1px solid rgba(239, 68, 68, 0.3);
+                                border-left:3px solid #EF4444; border-radius:8px;
+                                padding:12px 16px; margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-size:0.72rem; color:#EF4444; text-transform:uppercase;
+                                            letter-spacing:0.06em; font-weight:700;">⚠️ Routed Exception</div>
+                                <div style="font-size:1.8rem; font-weight:700; color:#EF4444;">{count_exception}</div>
+                                <div style="font-size:0.78rem; color:#9EA3A8;">Router assigned but NOT scanned</div>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                cols_exc = [c for c in ['Job_ID', 'Assigned_Driver', 'Planned_Date', 'Product_Name'] if c in bucket_routed_noscan.columns]
+                st.dataframe(bucket_routed_noscan[cols_exc].head(50), use_container_width=True, hide_index=True)
+                st.divider()
+            
+            # [B] Ready for Scan (Standard)
+            count_intake = len(bucket_intake)
             st.markdown(f"""
                 <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
                             border-left:3px solid #8DC63F; border-radius:8px;
                             padding:12px 16px; margin-bottom:12px;">
                     <div style="font-size:0.72rem; color:#808285; text-transform:uppercase;
-                                letter-spacing:0.06em;">Routed / In Progress</div>
-                    <div style="font-size:1.8rem; font-weight:700; color:#8DC63F;">{progress_count}</div>
-                    <div style="font-size:0.78rem; color:#9EA3A8;">Scanned — awaiting delivery</div>
+                                letter-spacing:0.06em;">Ready for Scan</div>
+                    <div style="font-size:1.8rem; font-weight:700; color:#8DC63F;">{count_intake}</div>
+                    <div style="font-size:0.78rem; color:#9EA3A8;">Arrived at dock — awaiting scan</div>
                 </div>
             """, unsafe_allow_html=True)
-            if not bucket_progress.empty:
-                cols_p = [c for c in ['Job_ID', 'Assigned_Driver', 'Last_Scan_User', 'Status'] if c in bucket_progress.columns]
-                st.dataframe(bucket_progress[cols_p].head(50), use_container_width=True, hide_index=True)
-            else:
-                st.info("No jobs currently in progress.")
+            if not bucket_intake.empty:
+                cols_i = [c for c in ['Job_ID', 'Carrier', 'Product_Name', 'Actual_Date'] if c in bucket_intake.columns]
+                st.dataframe(bucket_intake[cols_i].head(50), use_container_width=True, hide_index=True)
+            elif count_exception == 0:
+                st.info("No items awaiting scan.")
+
+        with b_col2:
+            st.caption("Dispatch & Outbound")
+
+            # [C] Ready for Routing (Action Req)
+            count_routing = len(bucket_ready_routing)
+            color_routing = "#F59E0B" if count_routing > 0 else "#808285"
+            st.markdown(f"""
+                <div style="background:#1E2124; border:1px solid rgba(245, 158, 11, 0.2);
+                            border-left:3px solid {color_routing}; border-radius:8px;
+                            padding:12px 16px; margin-bottom:12px;">
+                    <div style="font-size:0.72rem; color:{color_routing}; text-transform:uppercase;
+                                letter-spacing:0.06em; font-weight:600;">Action: Ready for Routing</div>
+                    <div style="font-size:1.8rem; font-weight:700; color:#F0F2F5;">{count_routing}</div>
+                    <div style="font-size:0.78rem; color:#9EA3A8;">Scanned — needs driver assignment</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if not bucket_ready_routing.empty:
+                cols_r = [c for c in ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Scanned_Date'] if c in bucket_ready_routing.columns]
+                st.dataframe(bucket_ready_routing[cols_r].head(50), use_container_width=True, hide_index=True)
+                st.divider()
+
+            # [D] In Transit (Good)
+            count_transit = len(bucket_transit)
+            st.markdown(f"""
+                <div style="background:#1E2124; border:1px solid rgba(255,255,255,0.07);
+                            border-left:3px solid #10B981; border-radius:8px;
+                            padding:12px 16px; margin-bottom:12px;">
+                    <div style="font-size:0.72rem; color:#808285; text-transform:uppercase;
+                                letter-spacing:0.06em;">In Transit / Route</div>
+                    <div style="font-size:1.8rem; font-weight:700; color:#10B981;">{count_transit}</div>
+                    <div style="font-size:0.78rem; color:#9EA3A8;">Scanned & Assigned</div>
+                </div>
+            """, unsafe_allow_html=True)
+            if not bucket_transit.empty:
+                cols_t = [c for c in ['Job_ID', 'Assigned_Driver', 'Last_Scan_User', 'Status'] if c in bucket_transit.columns]
+                st.dataframe(bucket_transit[cols_t].head(50), use_container_width=True, hide_index=True)
+
     else:
-        st.info("Arrival and scan data not available in this dataset.")
+        st.info("Required data (Arrival/Scan/Driver) not available for Job Board.")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

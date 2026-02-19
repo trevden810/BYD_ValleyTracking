@@ -1,0 +1,20 @@
+﻿============================================================
+AUDIT: BYD/Valley Data Import
+============================================================
+
+[1] Source File: 02_19_26.03.xlsx
+[2] Raw Rows: 185
+[3] Processed Rows (Pre-Dedup): 185
+[INFO] Deduplicated jobs: Removed 4 redundant records based on Product Serial
+[4] Deduplicated Rows: 181
+    -> Dropped 4 rows
+
+[ANALYSIS] Dropped Rows Sample:
+  - Dropped Job ID: 928558 (Serial: 6297683, Planned: 2026-02-16 00:00:00)
+    -> Kept Job ID: 931227 (Planned: 2026-02-19 00:00:00)
+  - Dropped Job ID: 929195 (Serial: 6304355, Planned: 2026-02-16 00:00:00)
+    -> Kept Job ID: 930804 (Planned: 2026-02-18 00:00:00)
+  - Dropped Job ID: 927812 (Serial: 6300265, Planned: 2026-02-18 00:00:00)
+    -> Kept Job ID: 931451 (Planned: 2026-02-23 00:00:00)
+  - Dropped Job ID: 929650 (Serial: 6309217, Planned: 2026-02-19 00:00:00)
+    -> Kept Job ID: 931568 (Planned: 2026-02-23 00:00:00)
