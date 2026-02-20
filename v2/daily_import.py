@@ -23,57 +23,53 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from v2.main import main as process_export
 
 
-def find_latest_export(export_dir: str) -> str:
+def _collect_valid_exports(directory: str) -> list:
     """
-    Finds the latest export file from the OneDrive directory.
-    
-    File naming convention: MM_DD_YY.NN (e.g., 02_16_26.01, 02_16_26.02)
-    where NN is a sequential number for multiple exports on the same day.
-    
-    Args:
-        export_dir: Path to OneDrive export directory
-        
-    Returns:
-        Path to the latest export file
-        
-    Raises:
-        FileNotFoundError: If no export files are found
+    Returns a list of valid export files (MM_DD_YY.NN.xlsx) in the given directory.
+    Returns an empty list if the directory doesn't exist or has no matching files.
     """
-    # Ensure directory exists
-    if not os.path.exists(export_dir):
-        raise FileNotFoundError(f"Export directory not found: {export_dir}")
-    
-    # Pattern to match export files: MM_DD_YY.NN.xlsx
-    pattern = os.path.join(export_dir, "*.xlsx")
-    export_files = glob.glob(pattern)
-    
-    if not export_files:
-        raise FileNotFoundError(f"No export files found in {export_dir}")
-    
-    # Filter to only files matching the naming convention (MM_DD_YY.NN)
-    valid_files = []
-    for filepath in export_files:
+    if not os.path.exists(directory):
+        return []
+
+    valid = []
+    for filepath in glob.glob(os.path.join(directory, "*.xlsx")):
         filename = os.path.basename(filepath)
-        # Check if it matches pattern like "02_16_26.01.xlsx"
         parts = filename.replace('.xlsx', '').split('.')
         if len(parts) == 2:
-            # Validate date part (should be MM_DD_YY)
             date_part = parts[0].split('_')
             if len(date_part) == 3 and all(p.isdigit() for p in date_part):
-                # Validate sequence part (should be digits)
                 if parts[1].isdigit():
-                    valid_files.append(filepath)
-    
+                    valid.append(filepath)
+    return valid
+
+
+def find_latest_export(export_dir: str) -> str:
+    """
+    Finds the latest export file (MM_DD_YY.NN.xlsx) in the OneDrive
+    export directory.
+
+    Args:
+        export_dir: Path to the OneDrive export directory
+
+    Returns:
+        Absolute path to the latest export file
+
+    Raises:
+        FileNotFoundError: If no matching files are found
+    """
+    if not os.path.exists(export_dir):
+        raise FileNotFoundError(f"Export directory not found: {export_dir}")
+
+    valid_files = _collect_valid_exports(export_dir)
+
     if not valid_files:
         raise FileNotFoundError(
-            f"No files matching naming convention (MM_DD_YY.NN.xlsx) found in {export_dir}"
+            f"No export files (MM_DD_YY.NN.xlsx) found in:\n  {export_dir}"
         )
-    
-    # Sort by file modification time (most recent first)
+
+    # Sort by modification time — most recent first
     valid_files.sort(key=os.path.getmtime, reverse=True)
-    
-    latest_file = valid_files[0]
-    return latest_file
+    return valid_files[0]
 
 
 def launch_streamlit_dashboard():
@@ -127,16 +123,24 @@ def main():
     try:
         latest_export = find_latest_export(args.export_dir)
         export_filename = os.path.basename(latest_export)
+        export_dir_used = os.path.dirname(latest_export)
         export_time = datetime.fromtimestamp(os.path.getmtime(latest_export))
-        
+
+        # Quick row count so the user can confirm the right file was picked
+        try:
+            import pandas as pd
+            row_count = len(pd.read_excel(latest_export))
+        except Exception:
+            row_count = '?'
+
         print(f"\n[OK] Found latest export: {export_filename}")
-        print(f"  Modified: {export_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        
+        print(f"  Location : {export_dir_used}")
+        print(f"  Modified : {export_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  Row count: {row_count} jobs in file")
+
     except FileNotFoundError as e:
         print(f"\n[ERROR] {e}")
-        print("\nPlease ensure:")
-        print("  1. The OneDrive directory path is correct")
-        print("  2. Export files are present in the expected format (MM_DD_YY.NN.xlsx)")
+        print("\nPlease ensure export files are present in the expected format (MM_DD_YY.NN.xlsx).")
         return 1
     
     # Process the export through V2.0 pipeline

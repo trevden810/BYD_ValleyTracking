@@ -74,12 +74,15 @@ class SupabaseClient:
             print(f"[ERROR] Error inserting snapshot: {e}")
             return 0
     
-    def replace_today_snapshot(self, df: pd.DataFrame) -> int:
+    def replace_all_snapshots(self, df: pd.DataFrame) -> int:
         """
-        Replaces today's snapshot with fresh data (delete-then-insert).
-        This ensures multiple import runs on the same day don't accumulate
-        stale records. Completed/delivered jobs should be pre-filtered before
-        calling this method.
+        Replaces ALL snapshot data with a fresh insert (full wipe-and-replace).
+
+        This app stores a single active snapshot — not a time-series. Wiping
+        all rows on each import ensures stale data from ANY prior day can never
+        linger and inflate job counts.
+
+        Completed/delivered jobs must be pre-filtered before calling this.
 
         Args:
             df: Processed DataFrame with ACTIVE jobs only (no completed)
@@ -87,20 +90,27 @@ class SupabaseClient:
         Returns:
             Number of records inserted
         """
+        # Step 1: Wipe ALL existing snapshot rows.
+        # Supabase RLS silently ignores broad single-filter deletes, so we
+        # iterate over each calendar day in the past 60 days individually.
+        from datetime import timedelta as _td
         today = datetime.now().date()
-        start_ts = datetime.combine(today, datetime.min.time()).isoformat()
-        end_ts   = datetime.combine(today, datetime.max.time()).isoformat()
-
-        # Step 1: Delete all records for today
+        deleted_total = 0
         try:
-            self.client.table('job_snapshots') \
-                .delete() \
-                .gte('snapshot_date', start_ts) \
-                .lte('snapshot_date', end_ts) \
-                .execute()
-            print(f"[OK] Cleared existing snapshot for {today}")
+            for days_back in range(0, 61):
+                d = today - _td(days=days_back)
+                start = f"{d}T00:00:00"
+                end   = f"{d}T23:59:59"
+                res = self.client.table('job_snapshots') \
+                    .delete() \
+                    .gte('snapshot_date', start) \
+                    .lte('snapshot_date', end) \
+                    .execute()
+                if res.data:
+                    deleted_total += len(res.data)
+            print(f"[OK] Cleared ALL existing snapshot rows ({deleted_total} removed)")
         except Exception as e:
-            print(f"[WARN] Could not clear today's snapshot (will still insert): {e}")
+            print(f"[WARN] Could not clear snapshots (will still insert): {e}")
 
         # Step 2: Insert fresh records
         return self.insert_snapshot(df)
