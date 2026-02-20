@@ -315,7 +315,7 @@ with tab_overview:
     # ── Data Info Bar ──
     col_info1, col_info2, col_info3 = st.columns(3)
     with col_info1:
-        st.markdown(f"**📅 Data Date:** {data_date.strftime('%A, %b %d %Y') if data_date else 'Unknown'}")
+        st.markdown(f"**📅 Data Date:** {data_date.strftime('%m/%d/%Y') if data_date else 'Unknown'}")
     with col_info2:
         st.markdown(f"**🕐 Cache refreshes every:** 15 minutes")
     with col_info3:
@@ -330,8 +330,12 @@ with tab_overview:
         st.markdown("*These jobs have a driver assigned but no scan recorded. Confirm status immediately.*")
         disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
                                   'Assigned_Driver', 'Stop_Number'] if c in bucket_exception.columns]
+        _ex = bucket_exception[disp_cols].reset_index(drop=True).copy()
+        for _dc in ['Planned_Date', 'Actual_Date']:
+            if _dc in _ex.columns:
+                _ex[_dc] = pd.to_datetime(_ex[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
         st.dataframe(
-            bucket_exception[disp_cols].reset_index(drop=True),
+            _ex,
             use_container_width=True, hide_index=True
         )
 
@@ -347,7 +351,11 @@ with tab_overview:
             st.markdown(f"### ⚠️ Overdue Arrivals ({len(overdue)})")
             st.markdown("*Planned date has passed — not yet arrived at dock.*")
             disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State'] if c in overdue.columns]
-            st.dataframe(overdue[disp_cols].reset_index(drop=True),
+            _od = overdue[disp_cols].reset_index(drop=True).copy()
+            for _dc in ['Planned_Date', 'Actual_Date']:
+                if _dc in _od.columns:
+                    _od[_dc] = pd.to_datetime(_od[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
+            st.dataframe(_od,
                          use_container_width=True, hide_index=True)
 
 
@@ -365,8 +373,11 @@ with tab_board:
             st.markdown("<p style='color:#60657A; font-size:0.8rem; padding: 8px 0;'>No items.</p>",
                         unsafe_allow_html=True)
         else:
-            st.dataframe(bucket_df[display_cols].reset_index(drop=True),
-                         use_container_width=True, hide_index=True, height=300)
+            _bt = bucket_df[display_cols].reset_index(drop=True).copy()
+            for _dc in ['Planned_Date', 'Actual_Date']:
+                if _dc in _bt.columns:
+                    _bt[_dc] = pd.to_datetime(_bt[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
+            st.dataframe(_bt, use_container_width=True, hide_index=True, height=300)
 
     DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'Stop_Number']
     DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Planned_Date', 'Carrier', 'Stop_Number']
@@ -453,7 +464,11 @@ with tab_reschedules:
                                       'Planned_Date', 'Status', 'Carrier', 'State',
                                       'Last_Scan_User', 'Assigned_Driver']
                          if c in rescheduled.columns]
-            st.dataframe(rescheduled[disp_cols].reset_index(drop=True),
+            _rs = rescheduled[disp_cols].reset_index(drop=True).copy()
+            for _dc in ['Planned_Date', 'Actual_Date']:
+                if _dc in _rs.columns:
+                    _rs[_dc] = pd.to_datetime(_rs[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
+            st.dataframe(_rs,
                          use_container_width=True, hide_index=True)
 
 
@@ -483,6 +498,10 @@ with tab_full:
         return "⬜ Manifested"
 
     df_display = df.copy()
+    # Format date columns to MM/DD/YYYY
+    for _dc in ['Planned_Date', 'Actual_Date']:
+        if _dc in df_display.columns:
+            df_display[_dc] = pd.to_datetime(df_display[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
     df_display['Status_Visual'] = df_display.apply(visual_status, axis=1)
 
     display_cols = [c for c in [
@@ -503,6 +522,6 @@ with tab_full:
     st.download_button(
         label="⬇️ Download CSV",
         data=csv,
-        file_name=f"active_jobs_{datetime.now().strftime('%Y%m%d')}.csv",
+        file_name=f"active_jobs_{datetime.now().strftime('%m%d%Y')}.csv",
         mime="text/csv"
     )
