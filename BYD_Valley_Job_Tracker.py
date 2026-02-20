@@ -213,9 +213,9 @@ with st.expander("🔍 Filters", expanded=True):
                   if 'State' in df_raw.columns else ["All States"])
         sel_state = st.selectbox("State", states, label_visibility="collapsed")
     with fc4:
-        start_of_year  = datetime(datetime.now().year, 1, 1).date()
-        future_limit   = datetime.now().date() + pd.Timedelta(days=60)
-        date_range = st.date_input("Date Range", value=(start_of_year, future_limit),
+        today_date     = datetime.now().date()
+        future_limit   = today_date + pd.Timedelta(days=60)
+        date_range = st.date_input("Date Range", value=(today_date, future_limit),
                                    format="MM/DD/YYYY", label_visibility="collapsed")
     with fc5:
         show_wg = st.checkbox("White Glove", value=False)
