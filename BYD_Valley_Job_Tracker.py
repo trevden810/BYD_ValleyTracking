@@ -109,24 +109,65 @@ def load_data():
     Falls back to local Excel if Supabase is unavailable.
     Data is already clean — completed jobs are filtered at import time.
     """
-    # 1. Try Supabase — fetch the most recent snapshot date available
+    # 1. Try Supabase — fetch ALL active jobs (table is kept clean by upsert)
     try:
         client = SupabaseClient()
 
-        # Get the latest snapshot_date in the DB
-        date_q = client.client.table('job_snapshots') \
-            .select('snapshot_date') \
-            .order('snapshot_date', desc=True) \
-            .limit(1) \
-            .execute()
+        # Fetch all rows with pagination
+        all_records = []
+        offset = 0
+        batch_size = 1000
+        while True:
+            res = client.client.table('job_snapshots') \
+                .select('*') \
+                .range(offset, offset + batch_size - 1) \
+                .execute()
+            if not res.data:
+                break
+            all_records.extend(res.data)
+            if len(res.data) < batch_size:
+                break
+            offset += batch_size
 
-        if date_q.data:
-            latest_ts = date_q.data[0]['snapshot_date']
-            # Parse just the date part
-            latest_date = pd.to_datetime(latest_ts).date()
-            df = client.get_snapshot_by_date(latest_date)
-            if df is not None and not df.empty:
-                return df, latest_date
+        if all_records:
+            df = pd.DataFrame(all_records)
+
+            # Map DB columns to app columns
+            column_map = {
+                'job_id': 'Job_ID',
+                'planned_date': 'Planned_Date',
+                'actual_date': 'Actual_Date',
+                'delay_days': 'Delay_Days',
+                'status': 'Status',
+                'carrier': 'Carrier',
+                'state': 'State',
+                'scan_user': 'Last_Scan_User',
+                'scan_timestamp': 'Scan_Timestamp',
+                'product_description': 'Product_Name',
+                'piece_count': 'Piece_Count',
+                'white_glove': 'White_Glove',
+                'notification_detail': 'Notification_Detail',
+                'miles_oneway': 'Miles_OneWay'
+            }
+            df = df.rename(columns=column_map)
+
+            # Parse date columns
+            for col in ['Planned_Date', 'Actual_Date', 'Scan_Timestamp']:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+
+            # Ensure expected columns exist
+            for col in ['Stop_Number', 'Product_Serial', 'Assigned_Driver', 'Customer_Notes', 'Is_Routed']:
+                if col not in df.columns:
+                    df[col] = '' if col != 'Is_Routed' else False
+
+            # Use latest snapshot_date as the data date
+            if 'snapshot_date' in df.columns:
+                data_date = pd.to_datetime(df['snapshot_date'], format='ISO8601').max().date()
+            else:
+                data_date = datetime.now().date()
+
+            return df, data_date
 
     except Exception as e:
         print(f"[WARN] Supabase unavailable: {e}")

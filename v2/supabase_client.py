@@ -74,15 +74,18 @@ class SupabaseClient:
             print(f"[ERROR] Error inserting snapshot: {e}")
             return 0
     
-    def replace_all_snapshots(self, df: pd.DataFrame) -> int:
+    def upsert_active_jobs(self, df: pd.DataFrame) -> int:
         """
-        Replaces ALL snapshot data with a fresh insert (full wipe-and-replace).
+        Syncs the job_snapshots table with the current export.
 
-        This app stores a single active snapshot — not a time-series. Wiping
-        all rows on each import ensures stale data from ANY prior day can never
-        linger and inflate job counts.
+        Logic:
+          1. Fetch all existing job_ids from the DB
+          2. Delete rows whose job_id is in the current export (will be re-inserted fresh)
+          3. Delete rows whose job_id is NOT in the export (completed/delivered)
+          4. Insert all current export rows
 
-        Completed/delivered jobs must be pre-filtered before calling this.
+        This preserves historical jobs from prior imports while keeping
+        the data accurate on every run.
 
         Args:
             df: Processed DataFrame with ACTIVE jobs only (no completed)
@@ -90,30 +93,51 @@ class SupabaseClient:
         Returns:
             Number of records inserted
         """
-        # Step 1: Wipe ALL existing snapshot rows.
-        # Supabase RLS silently ignores broad single-filter deletes, so we
-        # iterate over each calendar day in the past 60 days individually.
-        from datetime import timedelta as _td
-        today = datetime.now().date()
-        deleted_total = 0
+        # Collect current job_ids from the export
+        export_job_ids = set(df['Job_ID'].astype(str).tolist()) if 'Job_ID' in df.columns else set()
+
+        # Step 1: Fetch all existing job_ids from the DB
+        existing_ids = set()
         try:
-            for days_back in range(0, 61):
-                d = today - _td(days=days_back)
-                start = f"{d}T00:00:00"
-                end   = f"{d}T23:59:59"
+            offset = 0
+            while True:
+                res = self.client.table('job_snapshots') \
+                    .select('job_id') \
+                    .range(offset, offset + 999) \
+                    .execute()
+                if not res.data:
+                    break
+                existing_ids.update(r['job_id'] for r in res.data)
+                if len(res.data) < 1000:
+                    break
+                offset += 1000
+            print(f"[OK] Found {len(existing_ids)} existing jobs in DB")
+        except Exception as e:
+            print(f"[WARN] Could not fetch existing job_ids: {e}")
+
+        # Step 2: Delete rows that will be refreshed or are stale
+        # Delete jobs in the current export (will re-insert with fresh data)
+        # AND jobs NOT in the export (completed/delivered — stale)
+        ids_to_delete = list(existing_ids)
+        stale_count = len(existing_ids - export_job_ids)
+        refresh_count = len(existing_ids & export_job_ids)
+        deleted = 0
+        try:
+            for i in range(0, len(ids_to_delete), 50):
+                batch = ids_to_delete[i:i + 50]
                 res = self.client.table('job_snapshots') \
                     .delete() \
-                    .gte('snapshot_date', start) \
-                    .lte('snapshot_date', end) \
+                    .in_('job_id', batch) \
                     .execute()
                 if res.data:
-                    deleted_total += len(res.data)
-            print(f"[OK] Cleared ALL existing snapshot rows ({deleted_total} removed)")
+                    deleted += len(res.data)
+            print(f"[OK] Removed {deleted} rows ({stale_count} completed, {refresh_count} to refresh)")
         except Exception as e:
-            print(f"[WARN] Could not clear snapshots (will still insert): {e}")
+            print(f"[WARN] Error during cleanup: {e}")
 
-        # Step 2: Insert fresh records
+        # Step 3: Insert all current export rows
         return self.insert_snapshot(df)
+
 
     def insert_kpis(self, kpis: Dict, report_date: datetime = None) -> bool:
         """

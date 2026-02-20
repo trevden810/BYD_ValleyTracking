@@ -104,8 +104,8 @@ def main(export_filepath: str = None, dry_run: bool = False):
         print(f"  New Deliveries: {len(deltas['new_deliveries'])}")
 
         if not dry_run:
-            # Replace ALL snapshots (full wipe-and-replace for accuracy)
-            supabase.replace_all_snapshots(df_active)
+            # Upsert active jobs (update existing, add new, remove completed)
+            supabase.upsert_active_jobs(df_active)
             
             # Insert KPIs
             supabase.insert_kpis(kpis)
