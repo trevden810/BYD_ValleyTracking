@@ -94,36 +94,31 @@ def compare_snapshots(current_df: pd.DataFrame, previous_df: pd.DataFrame) -> Di
                 'Status': row.get('Status', '')
             })
 
-        # 4. Newly Overdue
-        # Logic: Planned date < Today AND Actual Date is NaT
-        # Change: previously wasn't overdue (maybe planned date was future, or it had arrived?)
-        # Simplification: Just list what is overdue NOW that wasn't flagged before? 
-        # Actually simplest useful metric: It became overdue TODAY.
-        # i.e. Planned Date was Yesterday? Or just "Is Overdue Now" AND "Was Not Overdue Before"?
+        # 4. Newly Overdue — snapshot-based comparison
+        # Overdue = Planned_Date < today AND no Actual_Date
+        # "Newly" overdue = overdue NOW but was NOT overdue in previous snapshot
+        # This correctly handles multi-day gaps (weekends, holidays, downtime)
         
-        # Let's rely on the pre-calculated logic if possible, or re-eval:
-        if pd.isna(curr_actual): # Still not arrived
+        if pd.isna(curr_actual):  # Still not arrived
             curr_planned = row.get('Planned_Date')
             
             if pd.notna(curr_planned):
-                # check if it just became overdue (e.g. planned date was yesterday)
-                # OR check if it wasn't in the overdue list before. 
-                # Simpler: If it's overdue now, and wasn't marked as overdue (or didn't exist) before?
-                # But we know it existed (we are in the not-new-job block).
+                from datetime import datetime
+                today = datetime.now().date()
+                is_overdue_now = curr_planned.date() < today if hasattr(curr_planned, 'date') else False
                 
-                # Check if it was overdue before:
-                # In previous snapshot, checks if actual_date was null and planned_date < snapshot_date
+                # Check if it was already overdue in the previous snapshot
+                was_overdue_before = False
+                prev_planned_raw = prev_row.get('planned_date')
+                prev_actual_raw = prev_row.get('actual_date')
                 
-                # Note: This determines "Freshly" overdue vs "Still" overdue.
-                # "Freshly" overdue means Planned_Date < Today && Planned_Date >= Yesterday? 
-                # Let's stick to: Planned Date is BEFORE Today, and in previous check it wasn't overdue.
+                if pd.notna(prev_planned_raw) and pd.isna(prev_actual_raw):
+                    # It existed before and hadn't arrived — was it already past due?
+                    prev_planned_date = pd.to_datetime(prev_planned_raw).date()
+                    was_overdue_before = prev_planned_date < today
                 
-                # For simplicity in V1 of this feature: 
-                # If Planned_Date is strictly yesterday, it became overdue today.
-                from datetime import datetime, timedelta
-                yesterday = (datetime.now() - timedelta(days=1)).date()
-                if curr_planned.date() == yesterday:
-                     deltas['new_overdue'].append({
+                if is_overdue_now and not was_overdue_before:
+                    deltas['new_overdue'].append({
                         'Job_ID': job_id,
                         'Carrier': row.get('Carrier', ''),
                         'Planned_Date': curr_planned.strftime('%Y-%m-%d')

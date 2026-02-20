@@ -62,7 +62,25 @@ class SupabaseClient:
                 'piece_count': int(row.get('Piece_Count', 0)),
                 'white_glove': bool(row.get('White_Glove', False)),
                 'notification_detail': str(row.get('Notification_Detail', '')),
-                'miles_oneway': float(row.get('Miles_OneWay', 0.0))
+                'miles_oneway': float(row.get('Miles_OneWay', 0.0)),
+                # New fields
+                'market': str(row.get('Market', '')),
+                'city': str(row.get('City', '')),
+                'customer_name': str(row.get('Customer_Name', '')),
+                'delivery_address': str(row.get('Delivery_Address', '')),
+                'date_received': row.get('Date_Received').isoformat() if pd.notna(row.get('Date_Received')) else None,
+                'job_created_at': row.get('Job_Created_At').isoformat() if pd.notna(row.get('Job_Created_At')) else None,
+                'client_order_number': str(row.get('Client_Order_Number', '')),
+                'prior_job_id': str(row.get('Prior_Job_ID', '')),
+                'signed_by': str(row.get('Signed_By', '')),
+                'delivery_scan_count': int(row.get('Delivery_Scan_Count', 0)),
+                'product_weight_lbs': int(row.get('Product_Weight_Lbs', 0)),
+                'crew_required': int(row.get('Crew_Required', 1)),
+                'driver_notes': str(row.get('Driver_Notes', '')),
+                'job_type': str(row.get('Job_Type', 'Delivery')),
+                'arrival_time': row.get('Arrival_Time').isoformat() if pd.notna(row.get('Arrival_Time')) else None,
+                'dwell_minutes': float(row.get('Dwell_Minutes')) if pd.notna(row.get('Dwell_Minutes')) else None,
+                'lead_time_days': int(row.get('Lead_Time_Days')) if pd.notna(row.get('Lead_Time_Days')) else None,
             }
             records.append(record)
         
@@ -295,7 +313,25 @@ class SupabaseClient:
                     'piece_count': 'Piece_Count',
                     'white_glove': 'White_Glove',
                     'notification_detail': 'Notification_Detail',
-                    'miles_oneway': 'Miles_OneWay'
+                    'miles_oneway': 'Miles_OneWay',
+                    # New fields
+                    'market': 'Market',
+                    'city': 'City',
+                    'customer_name': 'Customer_Name',
+                    'delivery_address': 'Delivery_Address',
+                    'date_received': 'Date_Received',
+                    'job_created_at': 'Job_Created_At',
+                    'client_order_number': 'Client_Order_Number',
+                    'prior_job_id': 'Prior_Job_ID',
+                    'signed_by': 'Signed_By',
+                    'delivery_scan_count': 'Delivery_Scan_Count',
+                    'product_weight_lbs': 'Product_Weight_Lbs',
+                    'crew_required': 'Crew_Required',
+                    'driver_notes': 'Driver_Notes',
+                    'job_type': 'Job_Type',
+                    'arrival_time': 'Arrival_Time',
+                    'dwell_minutes': 'Dwell_Minutes',
+                    'lead_time_days': 'Lead_Time_Days',
                 }
                 
                 df = df.rename(columns=column_map)
@@ -359,6 +395,209 @@ class SupabaseClient:
             print(f"[ERROR] Error retrieving KPI history: {e}")
             return None
     
+    # ================================================================
+    # NEW: Job History (Improvement #1)
+    # ================================================================
+
+    def insert_job_history(self, df: pd.DataFrame) -> int:
+        """
+        Archives completed/delivered jobs into job_history table.
+        Uses upsert so re-runs on the same day are safe.
+        
+        Args:
+            df: DataFrame of completed jobs (already filtered by status)
+            
+        Returns:
+            Number of records archived
+        """
+        if df.empty:
+            return 0
+        
+        records = []
+        for _, row in df.iterrows():
+            record = {
+                'job_id': str(row.get('Job_ID', '')),
+                'carrier': str(row.get('Carrier', '')),
+                'state': str(row.get('State', '')),
+                'planned_date': row.get('Planned_Date').isoformat() if pd.notna(row.get('Planned_Date')) else None,
+                'actual_date': row.get('Actual_Date').isoformat() if pd.notna(row.get('Actual_Date')) else None,
+                'delay_days': float(row.get('Delay_Days')) if pd.notna(row.get('Delay_Days')) else None,
+                'status': str(row.get('Status', '')),
+                'product_description': str(row.get('Product_Description', '')),
+                'product_serial': str(row.get('Product_Serial', '')),
+                'piece_count': int(row.get('Piece_Count', 0)),
+                'white_glove': bool(row.get('White_Glove', False)),
+                'scan_user': str(row.get('Scan_User', '')),
+                'scan_timestamp': row.get('Scan_Timestamp').isoformat() if pd.notna(row.get('Scan_Timestamp')) else None,
+                'notification_detail': str(row.get('Notification_Detail', '')),
+                'miles_oneway': float(row.get('Miles_OneWay', 0.0)),
+                # New fields
+                'market': str(row.get('Market', '')),
+                'city': str(row.get('City', '')),
+                'customer_name': str(row.get('Customer_Name', '')),
+                'delivery_address': str(row.get('Delivery_Address', '')),
+                'date_received': row.get('Date_Received').isoformat() if pd.notna(row.get('Date_Received')) else None,
+                'job_created_at': row.get('Job_Created_At').isoformat() if pd.notna(row.get('Job_Created_At')) else None,
+                'client_order_number': str(row.get('Client_Order_Number', '')),
+                'prior_job_id': str(row.get('Prior_Job_ID', '')),
+                'signed_by': str(row.get('Signed_By', '')),
+                'delivery_scan_count': int(row.get('Delivery_Scan_Count', 0)),
+                'product_weight_lbs': int(row.get('Product_Weight_Lbs', 0)),
+                'crew_required': int(row.get('Crew_Required', 1)),
+                'driver_notes': str(row.get('Driver_Notes', '')),
+                'job_type': str(row.get('Job_Type', 'Delivery')),
+                'arrival_time': row.get('Arrival_Time').isoformat() if pd.notna(row.get('Arrival_Time')) else None,
+                'dwell_minutes': float(row.get('Dwell_Minutes')) if pd.notna(row.get('Dwell_Minutes')) else None,
+                'lead_time_days': int(row.get('Lead_Time_Days')) if pd.notna(row.get('Lead_Time_Days')) else None,
+            }
+            records.append(record)
+        
+        try:
+            # Upsert on job_id — safe to re-run
+            self.client.table('job_history').upsert(records, on_conflict='job_id').execute()
+            print(f"[OK] Archived {len(records)} completed jobs to job_history")
+            return len(records)
+        except Exception as e:
+            print(f"[ERROR] Error archiving job history: {e}")
+            return 0
+
+    def get_job_history(self, days: int = 90) -> Optional[pd.DataFrame]:
+        """
+        Retrieves historical completed-job records for analytics.
+        
+        Args:
+            days: Number of days to look back
+            
+        Returns:
+            DataFrame of completed jobs or None
+        """
+        try:
+            cutoff_date = (datetime.now().date() - pd.Timedelta(days=days)).isoformat()
+            
+            all_records = []
+            offset = 0
+            batch_size = 1000
+            
+            while True:
+                result = self.client.table('job_history') \
+                    .select('*') \
+                    .gte('completed_at', cutoff_date) \
+                    .order('completed_at', desc=True) \
+                    .range(offset, offset + batch_size - 1) \
+                    .execute()
+                
+                if not result.data:
+                    break
+                all_records.extend(result.data)
+                if len(result.data) < batch_size:
+                    break
+                offset += batch_size
+            
+            if all_records:
+                df = pd.DataFrame(all_records)
+                print(f"[OK] Retrieved {len(df)} historical job records")
+                return df
+            else:
+                print("[INFO] No job history records found")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Error retrieving job history: {e}")
+            return None
+
+    # ================================================================
+    # NEW: Carrier-Level KPIs (Improvement #2)
+    # ================================================================
+
+    def insert_carrier_kpis(self, carrier_kpis: List[Dict], report_date=None) -> bool:
+        """
+        Stores per-carrier KPI records.
+        
+        Args:
+            carrier_kpis: List of dicts from calculate_carrier_kpis()
+            report_date: Date of report (defaults to today)
+            
+        Returns:
+            True if successful
+        """
+        if not carrier_kpis:
+            return True
+        
+        if report_date is None:
+            report_date = datetime.now().date()
+        
+        records = []
+        for kpi in carrier_kpis:
+            records.append({
+                'report_date': report_date.isoformat(),
+                'carrier': kpi['carrier'],
+                'on_time_pct': kpi.get('on_time_pct', 0),
+                'avg_delay_days': kpi.get('avg_delay_days', 0),
+                'total_jobs': kpi.get('total_jobs', 0),
+                'overdue_count': kpi.get('overdue_count', 0),
+                'ready_for_routing': kpi.get('ready_for_routing', 0)
+            })
+        
+        try:
+            self.client.table('kpi_carrier_history').upsert(
+                records, on_conflict='report_date,carrier'
+            ).execute()
+            print(f"[OK] Stored KPIs for {len(records)} carriers")
+            return True
+        except Exception as e:
+            print(f"[ERROR] Error inserting carrier KPIs: {e}")
+            return False
+
+    # ================================================================
+    # NEW: Stage Transitions (Improvement #4)
+    # ================================================================
+
+    def insert_transitions(self, transitions: List[Dict]) -> int:
+        """
+        Stores job stage transition records.
+        Uses upsert so duplicate transitions are ignored.
+        
+        Args:
+            transitions: List of transition dicts from detect_transitions()
+            
+        Returns:
+            Number of transitions stored
+        """
+        if not transitions:
+            return 0
+        
+        try:
+            self.client.table('job_stage_transitions').upsert(
+                transitions, on_conflict='job_id,to_status'
+            ).execute()
+            print(f"[OK] Stored {len(transitions)} stage transitions")
+            return len(transitions)
+        except Exception as e:
+            print(f"[ERROR] Error inserting transitions: {e}")
+            return 0
+
+    def get_dwell_times(self) -> Optional[pd.DataFrame]:
+        """
+        Queries the v_stage_dwell_times view for average time in each stage.
+        
+        Returns:
+            DataFrame with dwell time analytics or None
+        """
+        try:
+            result = self.client.table('v_stage_dwell_times') \
+                .select('*') \
+                .execute()
+            
+            if result.data:
+                df = pd.DataFrame(result.data)
+                print(f"[OK] Retrieved dwell times for {len(df)} stages")
+                return df
+            else:
+                print("[INFO] No dwell time data available yet")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Error retrieving dwell times: {e}")
+            return None
+
     def compare_with_history(self, current_kpis: Dict) -> Dict:
         """
         Compares current KPIs with previous period to show trends.

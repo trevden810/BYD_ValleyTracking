@@ -12,17 +12,19 @@ Coordinates the entire data processing pipeline:
 
 import os
 import sys
+import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from v2.data_processor import load_manual_export, process_data, calculate_kpis, deduplicate_jobs
+from v2.data_processor import load_manual_export, process_data, calculate_kpis, calculate_carrier_kpis, calculate_driver_kpis, deduplicate_jobs
 from v2.supabase_client import SupabaseClient
 from v2.email_generator import generate_html_report, send_email
 from v2.comparator import compare_snapshots
 from v2.job_chains import process_job_chains, get_chain_alerts
+from v2.transitions import detect_transitions
 
 
 def main(export_filepath: str = None, dry_run: bool = False):
@@ -54,17 +56,19 @@ def main(export_filepath: str = None, dry_run: bool = False):
         # Deduplicate jobs (keep latest per Product_Serial)
         df_processed = deduplicate_jobs(df_processed_raw)
 
-        # ── Strip completed/delivered jobs BEFORE writing to Supabase ──────────
-        # These are archived in job_history (future) but NEVER go into active snapshot.
+        # ── Split completed/delivered jobs from active jobs ──────────
+        # Completed jobs go to job_history; active jobs go to job_snapshots.
         active_statuses_to_exclude = ['complete', 'deliver']
         if 'Status' in df_processed.columns:
             status_lower = df_processed['Status'].astype(str).str.lower().str.strip()
             exclude = status_lower.str.contains('|'.join(active_statuses_to_exclude), na=False)
             before = len(df_processed)
             df_active = df_processed[~exclude].copy()
-            print(f"[OK] Excluded {before - len(df_active)} completed/delivered jobs from active snapshot")
+            df_completed = df_processed[exclude].copy()
+            print(f"[OK] Split: {len(df_active)} active, {len(df_completed)} completed/delivered")
         else:
             df_active = df_processed.copy()
+            df_completed = pd.DataFrame()
 
         print(f"[OK] Processed {len(df_active)} active records (from {len(df_processed_raw)} raw)")
     except Exception as e:
@@ -103,12 +107,36 @@ def main(export_filepath: str = None, dry_run: bool = False):
         print(f"  New Arrivals: {len(deltas['new_arrivals'])}")
         print(f"  New Deliveries: {len(deltas['new_deliveries'])}")
 
+        # Detect workflow stage transitions (Improvement #4)
+        print("Detecting stage transitions...")
+        transitions = detect_transitions(df_active, previous_snapshot)
+        print(f"  Transitions detected: {len(transitions)}")
+
         if not dry_run:
             # Upsert active jobs (update existing, add new, remove completed)
             supabase.upsert_active_jobs(df_active)
             
-            # Insert KPIs
+            # Archive completed jobs to history (Improvement #1)
+            if not df_completed.empty:
+                supabase.insert_job_history(df_completed)
+            
+            # Insert aggregate KPIs
             supabase.insert_kpis(kpis)
+            
+            # Insert carrier-level KPIs (Improvement #2)
+            carrier_kpis = calculate_carrier_kpis(df_active)
+            if carrier_kpis:
+                supabase.insert_carrier_kpis(carrier_kpis)
+                print(f"  Carrier KPIs: {len(carrier_kpis)} carriers tracked")
+            
+            # Driver KPIs (log to console — no dedicated table yet)
+            driver_kpis = calculate_driver_kpis(df_active)
+            if driver_kpis:
+                print(f"  Driver KPIs: {len(driver_kpis)} drivers tracked")
+            
+            # Store transitions (Improvement #4)
+            if transitions:
+                supabase.insert_transitions(transitions)
             
             # Process job chains (reschedule tracking)
             print("\nProcessing job chains...")
@@ -129,7 +157,13 @@ def main(export_filepath: str = None, dry_run: bool = False):
             print(f"[OK] Data stored in Supabase with trend analysis")
         else:
             print("\n[WARN] DRY RUN: Skipping Supabase WRITE (Read-only for deltas)")
-            # In dry run, we still calculated deltas from history if available
+            # In dry run, still calculate carrier KPIs for display
+            carrier_kpis = calculate_carrier_kpis(df_active)
+            if carrier_kpis:
+                print(f"  Carrier KPIs (dry run): {len(carrier_kpis)} carriers")
+                for ck in carrier_kpis:
+                    print(f"    {ck['carrier']}: {ck['total_jobs']} jobs, "
+                          f"{ck['on_time_pct']}% on-time, {ck['overdue_count']} overdue")
             trends = {key: '->' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}
             
     except Exception as e:
