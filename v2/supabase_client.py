@@ -84,11 +84,31 @@ class SupabaseClient:
             }
             records.append(record)
         
+        # The new columns (arrival_time, dwell_minutes, etc.) may not exist
+        # until setup_schema_additions.sql is run. Fall back to base columns if needed.
+        NEW_SNAPSHOT_COLS = {
+            'market','city','customer_name','delivery_address','date_received',
+            'job_created_at','client_order_number','prior_job_id','signed_by',
+            'delivery_scan_count','product_weight_lbs','crew_required','driver_notes',
+            'job_type','arrival_time','dwell_minutes','lead_time_days'
+        }
         try:
-            result = self.client.table('job_snapshots').insert(records).execute()
+            self.client.table('job_snapshots').insert(records).execute()
             print(f"[OK] Inserted {len(records)} records into job_snapshots")
             return len(records)
         except Exception as e:
+            err = str(e)
+            if 'PGRST204' in err:
+                print(f"[WARN] New columns not in schema yet — retrying with base columns only")
+                print(f"[WARN] Run v2/setup_schema_additions.sql in Supabase to enable all fields")
+                base_records = [{k: v for k, v in r.items() if k not in NEW_SNAPSHOT_COLS} for r in records]
+                try:
+                    self.client.table('job_snapshots').insert(base_records).execute()
+                    print(f"[OK] Inserted {len(base_records)} records (base columns only)")
+                    return len(base_records)
+                except Exception as e2:
+                    print(f"[ERROR] Error inserting snapshot (base): {e2}")
+                    return 0
             print(f"[ERROR] Error inserting snapshot: {e}")
             return 0
     
@@ -452,14 +472,33 @@ class SupabaseClient:
             }
             records.append(record)
         
+        NEW_HISTORY_COLS = {
+            'market','city','customer_name','delivery_address','date_received',
+            'job_created_at','client_order_number','prior_job_id','signed_by',
+            'delivery_scan_count','product_weight_lbs','crew_required','driver_notes',
+            'job_type','arrival_time','dwell_minutes','lead_time_days'
+        }
         try:
             # Upsert on job_id — safe to re-run
             self.client.table('job_history').upsert(records, on_conflict='job_id').execute()
             print(f"[OK] Archived {len(records)} completed jobs to job_history")
             return len(records)
         except Exception as e:
+            err = str(e)
+            if 'PGRST204' in err:
+                print(f"[WARN] New columns not in job_history schema yet — retrying with base columns")
+                print(f"[WARN] Run v2/setup_schema_additions.sql in Supabase to enable all fields")
+                base_records = [{k: v for k, v in r.items() if k not in NEW_HISTORY_COLS} for r in records]
+                try:
+                    self.client.table('job_history').upsert(base_records, on_conflict='job_id').execute()
+                    print(f"[OK] Archived {len(base_records)} completed jobs (base columns only)")
+                    return len(base_records)
+                except Exception as e2:
+                    print(f"[ERROR] Error archiving job history (base): {e2}")
+                    return 0
             print(f"[ERROR] Error archiving job history: {e}")
             return 0
+
 
     def get_job_history(self, days: int = 90) -> Optional[pd.DataFrame]:
         """

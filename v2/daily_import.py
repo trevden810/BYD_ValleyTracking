@@ -97,7 +97,7 @@ def main():
     )
     parser.add_argument(
         '--export-dir',
-        default=r'C:\Users\TrevorBates\OneDrive - PEP\Clients\Desktop\Azure Sync\Daily Standup\BYD_ValleyData',
+        default=r'C:\BYD_ValleyData',
         help='Path to OneDrive export directory'
     )
     parser.add_argument(
