@@ -99,6 +99,10 @@ def main(export_filepath: str = None, dry_run: bool = False):
         # 3a. Get previous snapshot for DELTAS (before replacing with new one)
         previous_snapshot = supabase.get_latest_snapshot()
 
+        # 3b. Capture existing flags BEFORE upsert (needed for flag_history diff)
+        print("Capturing previous flag states...")
+        previous_flags = supabase.get_previous_flags()
+
         # Calculate deltas
         print("Calculating daily deltas...")
         deltas = compare_snapshots(df_active, previous_snapshot)
@@ -115,43 +119,96 @@ def main(export_filepath: str = None, dry_run: bool = False):
         if not dry_run:
             # Upsert active jobs (update existing, add new, remove completed)
             supabase.upsert_active_jobs(df_active)
-            
+
+            # Record flag changes (V2.0)
+            flag_changes = supabase.insert_flag_history(df_active, previous_flags)
+            print(f"  Flag changes recorded: {flag_changes}")
+
             # Archive completed jobs to history (Improvement #1)
             if not df_completed.empty:
                 supabase.insert_job_history(df_completed)
-            
+
+            # ── Reschedule Watch (V2.0) ──────────────────────────
+            # 1. Identify newly rescheduled jobs → upsert watch tiles
+            reschedule_keywords = ['rescheduled', 'reschedule', 're-schedul']
+            active_statuses = ['entered', 'scheduled']
+
+            if 'Status' in df_processed.columns:
+                resched_mask = df_processed['Status'].astype(str).str.lower().apply(
+                    lambda s: any(kw in s for kw in reschedule_keywords)
+                )
+                df_rescheduled = df_processed[resched_mask]
+
+                if not df_rescheduled.empty:
+                    watch_jobs = []
+                    for _, jrow in df_rescheduled.iterrows():
+                        serial = str(jrow.get('Product_Serial', ''))
+                        if serial and serial.lower() not in ['', 'nan', 'none']:
+                            watch_jobs.append({
+                                'product_serial':  serial,
+                                'original_job_id': str(jrow.get('Job_ID', '')),
+                                'carrier':         str(jrow.get('Carrier', '')),
+                                'rescheduled_at':  jrow['Planned_Date'].date().isoformat()
+                                                   if pd.notna(jrow.get('Planned_Date')) else None,
+                                'days_watching':   0,
+                            })
+                    if watch_jobs:
+                        supabase.upsert_reschedule_watch(watch_jobs)
+                        print(f"  Reschedule watch: {len(watch_jobs)} tile(s) upserted")
+
+                # 2. Identify Entered/Scheduled jobs that resolve a watch
+                active_mask = df_active['Status'].astype(str).str.lower().apply(
+                    lambda s: any(kw in s for kw in active_statuses)
+                )
+                df_new_active = df_active[active_mask]
+
+                if not df_new_active.empty:
+                    open_watches = supabase.get_reschedule_watch()
+                    open_serials = {w['product_serial']: w for w in open_watches}
+
+                    resolved_count = 0
+                    for _, jrow in df_new_active.iterrows():
+                        serial = str(jrow.get('Product_Serial', ''))
+                        if serial in open_serials:
+                            supabase.resolve_reschedule_watch(
+                                serial, str(jrow.get('Job_ID', ''))
+                            )
+                            resolved_count += 1
+                    if resolved_count:
+                        print(f"  Reschedule watch: {resolved_count} tile(s) resolved")
+
             # Insert aggregate KPIs
             supabase.insert_kpis(kpis)
-            
+
             # Insert carrier-level KPIs (Improvement #2)
             carrier_kpis = calculate_carrier_kpis(df_active)
             if carrier_kpis:
                 supabase.insert_carrier_kpis(carrier_kpis)
                 print(f"  Carrier KPIs: {len(carrier_kpis)} carriers tracked")
-            
+
             # Driver KPIs (log to console — no dedicated table yet)
             driver_kpis = calculate_driver_kpis(df_active)
             if driver_kpis:
                 print(f"  Driver KPIs: {len(driver_kpis)} drivers tracked")
-            
+
             # Store transitions (Improvement #4)
             if transitions:
                 supabase.insert_transitions(transitions)
-            
+
             # Process job chains (reschedule tracking)
             print("\nProcessing job chains...")
             chain_stats = process_job_chains(df_processed, supabase.client)
             if chain_stats.get('chains_processed', 0) > 0:
                 print(f"  Chains: {chain_stats['chains_processed']} processed, "
                       f"{chain_stats['new_chains_created']} new")
-            
+
             # Get chain alerts
             chain_alerts = get_chain_alerts(supabase.client)
             if chain_alerts:
                 critical = len([a for a in chain_alerts if a['severity'] == 'critical'])
                 warning = len([a for a in chain_alerts if a['severity'] == 'warning'])
                 print(f"  Chain Alerts: {critical} critical, {warning} warnings")
-            
+
             # Get trends
             trends = supabase.compare_with_history(kpis)
             print(f"[OK] Data stored in Supabase with trend analysis")
@@ -165,7 +222,8 @@ def main(export_filepath: str = None, dry_run: bool = False):
                     print(f"    {ck['carrier']}: {ck['total_jobs']} jobs, "
                           f"{ck['on_time_pct']}% on-time, {ck['overdue_count']} overdue")
             trends = {key: '->' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}
-            
+
+
     except Exception as e:
         print(f"[WARN] Supabase error (continuing without trends/deltas): {e}")
         trends = {key: '->' for key in ['on_time_pct', 'avg_delay_days', 'overdue_count']}

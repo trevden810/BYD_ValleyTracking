@@ -10,6 +10,15 @@ import json
 from datetime import datetime
 from typing import Dict, List, Optional
 
+# V2.0 — flag engine (imported lazily so module still works standalone)
+try:
+    from v2.flag_engine import evaluate_flags
+except ImportError:
+    try:
+        from flag_engine import evaluate_flags
+    except ImportError:
+        evaluate_flags = None
+
 
 def load_manual_export(filepath: str) -> pd.DataFrame:
     """
@@ -357,6 +366,13 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
         processed['Lead_Time_Days'] = lead.where(lead >= 0, other=None)
     else:
         processed['Lead_Time_Days'] = None
+
+    # ── V2.0: Compute flags for every job ─────────────────────────────────────
+    if evaluate_flags is not None:
+        try:
+            processed = evaluate_flags(processed)
+        except Exception as _fe:
+            print(f"[WARN] Flag engine error (flags skipped): {_fe}")
 
     return processed
 

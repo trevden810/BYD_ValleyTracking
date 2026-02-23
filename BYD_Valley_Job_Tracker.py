@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from utils.api import process_data, fetch_jobs_from_excel
 from v2.supabase_client import SupabaseClient
 from v2.job_chains import get_chain_alerts, JobChainManager
+from v2.flag_engine import flag_summary
 
 load_dotenv()
 
@@ -72,6 +73,24 @@ st.markdown("""
     font-size: 0.8rem;
     color: #F0F2F5;
 }
+
+/* Flag badges */
+.flag-red    { color: #E05A5A; font-weight: 700; }
+.flag-yellow { color: #F5A623; font-weight: 700; }
+.flag-green  { color: #8DC63F; font-weight: 700; }
+.flag-none   { color: #60657A; }
+
+/* Reschedule watch tile */
+.watch-tile {
+    background: #1C2030;
+    border: 1px solid rgba(245,166,35,.4);
+    border-left: 4px solid #F5A623;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+}
+.watch-serial { font-size: 1.0rem; font-weight: 700; color: #F5A623; }
+.watch-meta   { font-size: 0.72rem; color: #808285; margin-top: 4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,7 +112,7 @@ with col_title:
                 Dock Operations Dashboard
             </div>
             <div style="font-size: 0.8rem; color: #8DC63F; margin-top: 4px; font-weight: 500;">
-                BYD &amp; Valley Tracking Board
+                BYD &amp; Valley Tracking Board — V2.0
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -108,6 +127,7 @@ def load_data():
     Load from Supabase (latest snapshot date).
     Falls back to local Excel if Supabase is unavailable.
     Data is already clean — completed jobs are filtered at import time.
+    Flag columns (computed_flag, flag_reason, etc.) are populated by the import pipeline.
     """
     # 1. Try Supabase — fetch ALL active jobs (table is kept clean by upsert)
     try:
@@ -141,13 +161,18 @@ def load_data():
                 'status': 'Status',
                 'carrier': 'Carrier',
                 'state': 'State',
-                'scan_user': 'Last_Scan_User',
+                'scan_user': 'Scan_User',
                 'scan_timestamp': 'Scan_Timestamp',
                 'product_description': 'Product_Name',
                 'piece_count': 'Piece_Count',
                 'white_glove': 'White_Glove',
                 'notification_detail': 'Notification_Detail',
-                'miles_oneway': 'Miles_OneWay'
+                'miles_oneway': 'Miles_OneWay',
+                'customer_name': 'Customer_Name',
+                'delivery_address': 'Delivery_Address',
+                'market': 'Market',
+                'city': 'City',
+                'product_serial': 'Product_Serial',
             }
             df = df.rename(columns=column_map)
 
@@ -156,10 +181,20 @@ def load_data():
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
 
+            # Map assigned_driver from DB column
+            if 'assigned_driver' in df.columns and 'Assigned_Driver' not in df.columns:
+                df['Assigned_Driver'] = df['assigned_driver']
+
+            # Also expose Last_Scan_User for backward compat
+            if 'Scan_User' in df.columns:
+                df['Last_Scan_User'] = df['Scan_User']
+
             # Ensure expected columns exist
-            for col in ['Stop_Number', 'Product_Serial', 'Assigned_Driver', 'Customer_Notes', 'Is_Routed']:
+            for col in ['Stop_Number', 'Product_Serial', 'Assigned_Driver',
+                        'Customer_Notes', 'computed_flag', 'flag_reason',
+                        'sla_hours_elapsed', 'sla_breach_level', 'is_pepmove_leg']:
                 if col not in df.columns:
-                    df[col] = '' if col != 'Is_Routed' else False
+                    df[col] = '' if col not in ['sla_hours_elapsed'] else None
 
             # Use latest snapshot_date as the data date
             if 'snapshot_date' in df.columns:
@@ -184,6 +219,13 @@ def load_data():
                     'complete|deliver', na=False
                 )
                 df = df[~mask]
+            # Compute flags on local data too
+            try:
+                from v2.flag_engine import evaluate_flags
+                df = evaluate_flags(df)
+            except Exception:
+                for col in ['computed_flag', 'flag_reason']:
+                    df[col] = 'none'
             return df, datetime.now().date()
         except Exception as e:
             print(f"[ERROR] Local fallback failed: {e}")
@@ -191,7 +233,18 @@ def load_data():
     return pd.DataFrame(), None
 
 
+@st.cache_data(ttl=900)
+def load_reschedule_watch():
+    """Fetch unresolved reschedule watch tiles."""
+    try:
+        client = SupabaseClient()
+        return client.get_reschedule_watch()
+    except Exception:
+        return []
+
+
 df_raw, data_date = load_data()
+reschedule_tiles = load_reschedule_watch()
 
 if df_raw.empty:
     st.warning("⚠️ No data found. Run the daily import first.")
@@ -213,14 +266,14 @@ with st.expander("🔍 Filters", expanded=True):
                   if 'State' in df_raw.columns else ["All States"])
         sel_state = st.selectbox("State", states, label_visibility="collapsed")
     with fc4:
-        today_date     = datetime.now().date()
-        future_limit   = today_date + pd.Timedelta(days=60)
+        today_date   = datetime.now().date()
+        future_limit = today_date + pd.Timedelta(days=60)
         date_range = st.date_input("Date Range", value=(today_date, future_limit),
                                    format="MM/DD/YYYY", label_visibility="collapsed")
     with fc5:
         show_wg = st.checkbox("White Glove", value=False)
     with fc6:
-        show_action = st.checkbox("Action Req", value=False)
+        show_red_only = st.checkbox("Red Flags Only", value=False)
 
 
 # ── Apply Filters ──────────────────────────────────────────────────────────────
@@ -244,46 +297,55 @@ if show_wg and 'White_Glove' in df.columns:
 if search:
     s = search.lower()
     mask = pd.Series([False] * len(df), index=df.index)
-    for col in ['Job_ID', 'Product_Name', 'Notification_Detail', 'Stop_Number']:
+    for col in ['Job_ID', 'Product_Name', 'Notification_Detail', 'Stop_Number',
+                'Customer_Name', 'flag_reason']:
         if col in df.columns:
             mask |= df[col].astype(str).str.lower().str.contains(s, na=False)
     df = df[mask]
 
+if show_red_only and 'computed_flag' in df.columns:
+    df = df[df['computed_flag'] == 'red']
 
-# ── Status Masks ───────────────────────────────────────────────────────────────
-# Scanned = has a Last_Scan_User value
+
+# ── Flag Masks ─────────────────────────────────────────────────────────────────
+def _flag_col(frame):
+    return frame.get('computed_flag', pd.Series(['none'] * len(frame), index=frame.index)).astype(str)
+
+flags        = _flag_col(df)
+red_jobs     = df[flags == 'red']
+yellow_jobs  = df[flags == 'yellow']
+green_jobs   = df[flags == 'green']
+
+# Legacy scan / driver masks (kept for Job Board tab)
 scanned_mask = (
-    df.get('Last_Scan_User', pd.Series([''] * len(df), index=df.index))
+    df.get('Scan_User', pd.Series([''] * len(df), index=df.index))
     .astype(str).str.strip().replace('nan', '').ne('')
-) if 'Last_Scan_User' in df.columns else pd.Series([False] * len(df), index=df.index)
+) if 'Scan_User' in df.columns else pd.Series([False] * len(df), index=df.index)
 
-# Also check Scan_Count > 0 if available
 if 'Scan_Count' in df.columns:
     scanned_mask = scanned_mask | (pd.to_numeric(df['Scan_Count'], errors='coerce').fillna(0) > 0)
 
-# Arrived = has Actual_Date
 arrived_mask = pd.to_datetime(df.get('Actual_Date'), errors='coerce').notna() \
     if 'Actual_Date' in df.columns else pd.Series([False] * len(df), index=df.index)
 
-# Routed = has Assigned_Driver
 routed_mask = (
-    df.get('Is_Routed', pd.Series([False] * len(df), index=df.index))
-    .astype(bool)
-) if 'Is_Routed' in df.columns else pd.Series([False] * len(df), index=df.index)
+    df.get('Assigned_Driver', pd.Series([''] * len(df), index=df.index))
+    .astype(str).str.strip().replace('nan', '').ne('')
+)
 
-# Buckets
-bucket_exception   = df[routed_mask & ~scanned_mask]                   # 🔴 Routed but NOT Scanned
-bucket_ready_scan  = df[arrived_mask & ~scanned_mask & ~routed_mask]   # 📦 Arrived, not scanned, not routed
-bucket_ready_route = df[scanned_mask & ~routed_mask]                   # 🟡 Scanned, needs routing
-bucket_in_transit  = df[scanned_mask & routed_mask]                    # 🟢 Scanned + Routed
+# Job board buckets
+bucket_exception   = df[routed_mask & ~scanned_mask]
+bucket_ready_scan  = df[arrived_mask & ~scanned_mask & ~routed_mask]
+bucket_ready_route = df[scanned_mask & ~routed_mask]
+bucket_in_transit  = df[scanned_mask & routed_mask]
 
-if show_action:
-    df = bucket_exception if not bucket_exception.empty else df[pd.Series([False]*len(df), index=df.index)]
+# ── Flag summary from full (unfiltered) data for KPI cards
+full_flags = flag_summary(df)
 
 
 # ── TABS ───────────────────────────────────────────────────────────────────────
-tab_overview, tab_board, tab_reschedules, tab_full = st.tabs(
-    ["📊 Overview", "📋 Job Board", "🔁 Reschedules", "📄 Full Job List"]
+tab_overview, tab_board, tab_flags, tab_reschedules, tab_full = st.tabs(
+    ["📊 Overview", "📋 Job Board", "🚨 Flags", "🔁 Reschedule Watch", "📄 Full Job List"]
 )
 
 
@@ -293,7 +355,7 @@ tab_overview, tab_board, tab_reschedules, tab_full = st.tabs(
 with tab_overview:
 
     # ── KPI Cards ──
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
 
     def kpi(col, label, value, sub, color):
         with col:
@@ -304,11 +366,12 @@ with tab_overview:
                 <div class="kpi-sub">{sub}</div>
             </div>""", unsafe_allow_html=True)
 
-    kpi(k1, "Active Jobs",          len(df),                   "in date range",              "kpi-white")
-    kpi(k2, "Routed Exception 🔴",  len(bucket_exception),     "routed but not scanned",     "kpi-red"   if len(bucket_exception) > 0 else "kpi-green")
-    kpi(k3, "Ready for Scan 📦",    len(bucket_ready_scan),    "arrived, awaiting scan",     "kpi-amber" if len(bucket_ready_scan) > 0 else "kpi-green")
-    kpi(k4, "Ready for Routing 🟡", len(bucket_ready_route),   "scanned, needs driver",      "kpi-amber" if len(bucket_ready_route) > 0 else "kpi-green")
-    kpi(k5, "In Transit 🟢",        len(bucket_in_transit),    "scanned + driver assigned",  "kpi-green")
+    kpi(k1, "Active Jobs",          len(df),                          "in date range",                "kpi-white")
+    kpi(k2, "🟢 In Progress",       full_flags.get('green', 0),       "scanned + driver assigned",   "kpi-green" if full_flags.get('green', 0) > 0 else "kpi-white")
+    kpi(k3, "🟡 Driver SLA",        full_flags.get('yellow', 0),      "assign driver within 48 hrs", "kpi-amber" if full_flags.get('yellow', 0) > 0 else "kpi-green")
+    kpi(k4, "🔴 SLA Breach",        full_flags.get('red_driver_sla', 0), "driver 48+ hrs overdue",   "kpi-red"   if full_flags.get('red_driver_sla', 0) > 0 else "kpi-green")
+    kpi(k5, "🔴 Unscanned/Routed",  full_flags.get('red_no_scan', 0), "driver set, no scan",        "kpi-red"   if full_flags.get('red_no_scan', 0) > 0 else "kpi-green")
+    kpi(k6, "🔴 PEPMOVE Overdue",   full_flags.get('red_pepmove', 0), "past scheduled date",         "kpi-red"   if full_flags.get('red_pepmove', 0) > 0 else "kpi-green")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -323,21 +386,16 @@ with tab_overview:
             st.cache_data.clear()
             st.rerun()
 
-    # ── Exception Watchlist ──
-    if not bucket_exception.empty:
+    # ── Red Flag Summary ──
+    if not red_jobs.empty:
         st.markdown("---")
-        st.markdown("### 🚨 Exception Watchlist — Routed but Not Scanned")
-        st.markdown("*These jobs have a driver assigned but no scan recorded. Confirm status immediately.*")
-        disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
-                                  'Assigned_Driver', 'Stop_Number'] if c in bucket_exception.columns]
-        _ex = bucket_exception[disp_cols].reset_index(drop=True).copy()
-        for _dc in ['Planned_Date', 'Actual_Date']:
-            if _dc in _ex.columns:
-                _ex[_dc] = pd.to_datetime(_ex[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
-        st.dataframe(
-            _ex,
-            use_container_width=True, hide_index=True
-        )
+        st.markdown(f"### 🔴 Active Red Flags ({len(red_jobs)})")
+        _rc = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier',
+                            'Assigned_Driver', 'flag_reason'] if c in red_jobs.columns]
+        _red = red_jobs[_rc].reset_index(drop=True).copy()
+        if 'Planned_Date' in _red.columns:
+            _red['Planned_Date'] = pd.to_datetime(_red['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
+        st.dataframe(_red, use_container_width=True, hide_index=True)
 
     # ── Overdue Arrivals ──
     today = datetime.now().date()
@@ -352,11 +410,9 @@ with tab_overview:
             st.markdown("*Planned date has passed — not yet arrived at dock.*")
             disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State'] if c in overdue.columns]
             _od = overdue[disp_cols].reset_index(drop=True).copy()
-            for _dc in ['Planned_Date', 'Actual_Date']:
-                if _dc in _od.columns:
-                    _od[_dc] = pd.to_datetime(_od[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
-            st.dataframe(_od,
-                         use_container_width=True, hide_index=True)
+            if 'Planned_Date' in _od.columns:
+                _od['Planned_Date'] = pd.to_datetime(_od['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
+            st.dataframe(_od, use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -380,8 +436,8 @@ with tab_board:
             st.dataframe(_bt, use_container_width=True, hide_index=True, height=300)
 
     DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'Stop_Number']
-    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Planned_Date', 'Carrier', 'Stop_Number']
-    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Last_Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier']
+    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Scan_User', 'Planned_Date', 'Carrier', 'Stop_Number']
+    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier']
 
     with col_dock:
         st.markdown("**Dock & Intake Operations**")
@@ -443,71 +499,175 @@ with tab_board:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — RESCHEDULES
+# TAB 3 — FLAGS
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_flags:
+    st.markdown("### 🚨 Active Flag Dashboard")
+    st.markdown("*Hardwired SLA rules evaluated on every import. Flags reflect the current state of each job.*")
+
+    # ── Red Flags ──────────────────────────────────────────────────────────────
+    st.markdown(f"#### 🔴 Red Flags — Immediate Action Required ({len(red_jobs)})")
+    if red_jobs.empty:
+        st.success("✅ No red flags. All rules are satisfied.")
+    else:
+        # Sub-group by reason type
+        if 'flag_reason' in red_jobs.columns:
+            no_scan_r  = red_jobs[red_jobs['flag_reason'].str.contains('NOT scanned', case=False, na=False)]
+            sla_breach = red_jobs[red_jobs['flag_reason'].str.contains('BREACHED', case=False, na=False)]
+            pepmove_r  = red_jobs[red_jobs['flag_reason'].str.contains('PEPMOVE', case=False, na=False)]
+            other_r    = red_jobs[~red_jobs.index.isin(no_scan_r.index | sla_breach.index | pepmove_r.index)]
+        else:
+            no_scan_r = sla_breach = pepmove_r = other_r = pd.DataFrame()
+
+        FLAG_COLS = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
+                     'Assigned_Driver', 'Scan_User', 'sla_hours_elapsed', 'flag_reason']
+
+        def flag_table(frame, title, icon, desc):
+            if frame.empty:
+                return
+            st.markdown(f"**{icon} {title}** — {len(frame)} job(s)")
+            show = [c for c in FLAG_COLS if c in frame.columns]
+            _ft = frame[show].reset_index(drop=True).copy()
+            if 'Planned_Date' in _ft.columns:
+                _ft['Planned_Date'] = pd.to_datetime(_ft['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
+            if 'sla_hours_elapsed' in _ft.columns:
+                _ft['sla_hours_elapsed'] = _ft['sla_hours_elapsed'].apply(
+                    lambda x: f"{x:.1f} hrs" if pd.notna(x) else '—'
+                )
+            st.dataframe(_ft, use_container_width=True, hide_index=True)
+            st.markdown(f"<div style='font-size:0.7rem;color:#808285;margin-bottom:12px;'>{desc}</div>",
+                        unsafe_allow_html=True)
+
+        flag_table(no_scan_r,  "Unscanned / Routed",    "🔴",
+                   "Driver has been assigned but the unit has NOT been scanned. Warehouse must scan BEFORE delivery.")
+        flag_table(sla_breach, "Driver SLA Breach",      "🔴",
+                   "Unit was scanned 48+ hours ago. Driver must be assigned immediately.")
+        flag_table(pepmove_r,  "PEPMOVE Leg Overdue",    "🔴",
+                   "Delivery was scheduled to arrive at PEPMOVE but is past its planned date.")
+        flag_table(other_r,    "Other Red Flags",         "🔴", "")
+
+    st.markdown("---")
+
+    # ── Yellow Flags ───────────────────────────────────────────────────────────
+    st.markdown(f"#### 🟡 Yellow Flags — Driver Assignment SLA ({len(yellow_jobs)})")
+    if yellow_jobs.empty:
+        st.success("✅ No yellow flags.")
+    else:
+        st.info("These units were scanned within the last 48 hours but have no driver assigned. "
+                "Assign a driver before the 48-hr breach window.")
+
+        Y_COLS = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier',
+                  'Scan_User', 'sla_hours_elapsed', 'sla_breach_level', 'flag_reason']
+        show = [c for c in Y_COLS if c in yellow_jobs.columns]
+        _yt = yellow_jobs[show].reset_index(drop=True).copy()
+        if 'Planned_Date' in _yt.columns:
+            _yt['Planned_Date'] = pd.to_datetime(_yt['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
+        if 'sla_hours_elapsed' in _yt.columns:
+            _yt['sla_hours_elapsed'] = _yt['sla_hours_elapsed'].apply(
+                lambda x: f"{x:.1f} hrs" if pd.notna(x) else '—'
+            )
+        st.dataframe(_yt, use_container_width=True, hide_index=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — RESCHEDULE WATCH
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_reschedules:
-    st.markdown("### 🔁 Rescheduled Jobs")
-    st.markdown("*Jobs with a 'Re-scheduled' status in FileMaker — still active but date has changed.*")
+    st.markdown("### 🔁 Reschedule Watch")
+    st.markdown(
+        "*Tiles are created when a job is **Re-scheduled** in FileMaker and cleared automatically "
+        "once a new job with the same serial number reaches Entered or Scheduled status.*"
+    )
+
+    # Live tiles from DB
+    if reschedule_tiles:
+        today_str = datetime.now().date()
+        st.warning(f"⚠️ {len(reschedule_tiles)} serial number(s) awaiting re-assignment")
+        tile_cols = st.columns(min(3, len(reschedule_tiles)))
+        for i, tile in enumerate(reschedule_tiles):
+            col_i = tile_cols[i % len(tile_cols)]
+            with col_i:
+                resched_date = tile.get('rescheduled_at', 'Unknown')
+                days_str = ""
+                if resched_date and resched_date != 'Unknown':
+                    try:
+                        d = datetime.strptime(str(resched_date), '%Y-%m-%d').date()
+                        days = (today_str - d).days
+                        days_str = f" — watching {days} day(s)"
+                    except Exception:
+                        pass
+
+                st.markdown(f"""
+                <div class="watch-tile">
+                    <div class="watch-serial">📦 {tile.get('product_serial', 'N/A')}</div>
+                    <div class="watch-meta">
+                        Original Job: {tile.get('original_job_id', '—')}<br>
+                        Carrier: {tile.get('carrier', '—')}<br>
+                        Rescheduled: {resched_date}{days_str}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.success("✅ No active reschedule watches. All re-scheduled serials have been re-assigned.")
+
+    st.markdown("---")
+
+    # Fallback: also show FileMaker "Re-scheduled" status rows
+    st.markdown("#### FileMaker Re-Scheduled Status Jobs")
+    st.markdown("*Jobs currently in Re-scheduled status in FileMaker (from current export).*")
 
     if 'Status' not in df.columns:
         st.info("Status column not available in this dataset.")
     else:
-        rescheduled = df[
+        rescheduled_fm = df[
             df['Status'].astype(str).str.lower().str.strip().str.contains('re-schedul|reschedul', na=False)
         ]
-
-        if rescheduled.empty:
+        if rescheduled_fm.empty:
             st.success("✅ No re-scheduled jobs in the current date range.")
         else:
-            st.warning(f"⚠️ {len(rescheduled)} re-scheduled job(s) found.")
             disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Product_Serial',
                                       'Planned_Date', 'Status', 'Carrier', 'State',
-                                      'Last_Scan_User', 'Assigned_Driver']
-                         if c in rescheduled.columns]
-            _rs = rescheduled[disp_cols].reset_index(drop=True).copy()
-            for _dc in ['Planned_Date', 'Actual_Date']:
-                if _dc in _rs.columns:
-                    _rs[_dc] = pd.to_datetime(_rs[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
-            st.dataframe(_rs,
-                         use_container_width=True, hide_index=True)
-
-
+                                      'Scan_User', 'Assigned_Driver']
+                         if c in rescheduled_fm.columns]
+            _rs = rescheduled_fm[disp_cols].reset_index(drop=True).copy()
+            if 'Planned_Date' in _rs.columns:
+                _rs['Planned_Date'] = pd.to_datetime(_rs['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
+            st.dataframe(_rs, use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — FULL JOB LIST
+# TAB 5 — FULL JOB LIST
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_full:
     st.markdown(f"### 📄 Full Job List — {len(df)} active jobs")
 
-    # Visual status column
-    def visual_status(row):
-        is_scanned = False
-        if 'Last_Scan_User' in row and str(row.get('Last_Scan_User', '')).strip() not in ['', 'nan']:
-            is_scanned = True
-        if 'Scan_Count' in row and pd.to_numeric(row.get('Scan_Count', 0), errors='coerce') > 0:
-            is_scanned = True
-
-        is_routed  = bool(row.get('Is_Routed', False))
+    # Visual flag badge
+    def visual_flag(row):
+        flag = str(row.get('computed_flag', 'none')).lower()
+        if flag == 'red':    return "🔴 Red"
+        if flag == 'yellow': return "🟡 Yellow"
+        if flag == 'green':  return "🟢 In Progress"
+        # Fallback to legacy status logic
+        is_scanned = str(row.get('Scan_User', '')).strip() not in ['', 'nan']
+        is_routed  = str(row.get('Assigned_Driver', '')).strip() not in ['', 'nan']
         is_arrived = pd.notna(row.get('Actual_Date')) if 'Actual_Date' in row.index else False
-
         if is_routed and not is_scanned:   return "🔴 Routed Exception"
-        if is_scanned and is_routed:       return "🟢 In Transit"
+        if is_scanned and is_routed:       return "🟢 In Progress"
         if is_scanned and not is_routed:   return "🟡 Ready for Routing"
         if is_arrived and not is_scanned:  return "📦 Ready for Scan"
         return "⬜ Manifested"
 
     df_display = df.copy()
-    # Format date columns to MM/DD/YYYY
     for _dc in ['Planned_Date', 'Actual_Date']:
         if _dc in df_display.columns:
             df_display[_dc] = pd.to_datetime(df_display[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
-    df_display['Status_Visual'] = df_display.apply(visual_status, axis=1)
+    df_display['Flag'] = df_display.apply(visual_flag, axis=1)
 
     display_cols = [c for c in [
-        'Status_Visual', 'Job_ID', 'Product_Name', 'Product_Serial',
+        'Flag', 'Job_ID', 'Product_Name', 'Product_Serial',
         'Planned_Date', 'Actual_Date', 'Carrier', 'State',
-        'Last_Scan_User', 'Assigned_Driver', 'White_Glove', 'Stop_Number'
+        'Scan_User', 'Assigned_Driver', 'White_Glove', 'Stop_Number',
+        'flag_reason'
     ] if c in df_display.columns]
 
     st.dataframe(

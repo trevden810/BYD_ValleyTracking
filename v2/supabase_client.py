@@ -81,6 +81,15 @@ class SupabaseClient:
                 'arrival_time': row.get('Arrival_Time').isoformat() if pd.notna(row.get('Arrival_Time')) else None,
                 'dwell_minutes': float(row.get('Dwell_Minutes')) if pd.notna(row.get('Dwell_Minutes')) else None,
                 'lead_time_days': int(row.get('Lead_Time_Days')) if pd.notna(row.get('Lead_Time_Days')) else None,
+                # Routing — sourced from _kf_lead_id
+                'assigned_driver': str(row.get('Assigned_Driver', '')),
+                # V2.0 flag engine output
+                'computed_flag':    str(row.get('computed_flag', 'none')),
+                'flag_reason':      str(row.get('flag_reason', '')),
+                'sla_hours_elapsed': float(row['sla_hours_elapsed'])
+                                     if pd.notna(row.get('sla_hours_elapsed')) else None,
+                'sla_breach_level': str(row.get('sla_breach_level', 'n/a')),
+                'is_pepmove_leg':   bool(row.get('is_pepmove_leg', False)),
             }
             records.append(record)
         
@@ -90,8 +99,11 @@ class SupabaseClient:
             'market','city','customer_name','delivery_address','date_received',
             'job_created_at','client_order_number','prior_job_id','signed_by',
             'delivery_scan_count','product_weight_lbs','crew_required','driver_notes',
-            'job_type','arrival_time','dwell_minutes','lead_time_days'
+            'job_type','arrival_time','dwell_minutes','lead_time_days','assigned_driver',
+            # V2.0 flag columns
+            'computed_flag','flag_reason','sla_hours_elapsed','sla_breach_level','is_pepmove_leg',
         }
+
         try:
             self.client.table('job_snapshots').insert(records).execute()
             print(f"[OK] Inserted {len(records)} records into job_snapshots")
@@ -364,15 +376,15 @@ class SupabaseClient:
                 if 'Scan_Timestamp' in df.columns:
                     df['Scan_Timestamp'] = pd.to_datetime(df['Scan_Timestamp'])
                 
+                # Map assigned_driver from DB column if needed
+                if 'assigned_driver' in df.columns and 'Assigned_Driver' not in df.columns:
+                    df['Assigned_Driver'] = df['assigned_driver']
+
                 # Ensure generic columns exist if missing (to avoid UI errors)
-                required_cols = ['Stop_Number', 'Product_Serial', 'Assigned_Driver', 'Customer_Notes', 'Is_Routed']
+                required_cols = ['Stop_Number', 'Product_Serial', 'Assigned_Driver', 'Customer_Notes']
                 for col in required_cols:
                     if col not in df.columns:
-                        df[col] = '' # Fill missing with empty string
-                        
-                # Handle Is_Routed specifically (boolean)
-                if 'Is_Routed' not in df.columns:
-                     df['Is_Routed'] = False
+                        df[col] = ''
 
                 print(f"[OK] Retrieved {len(df)} records for date {target_date}")
                 return df
@@ -614,7 +626,166 @@ class SupabaseClient:
             print(f"[ERROR] Error inserting transitions: {e}")
             return 0
 
+    # ================================================================
+    # NEW: Flag History (V2.0)
+    # ================================================================
+
+    def insert_flag_history(self, df: pd.DataFrame, previous_flags: dict = None) -> int:
+        """
+        Records flag state changes to the flag_history audit table.
+        Only inserts rows where the flag has changed since last import.
+
+        Args:
+            df: Active jobs DataFrame (must have computed_flag, flag_reason columns)
+            previous_flags: Dict of {job_id: computed_flag} from the previous snapshot
+
+        Returns:
+            Number of flag changes recorded
+        """
+        if 'computed_flag' not in df.columns:
+            return 0
+
+        previous_flags = previous_flags or {}
+        records = []
+        now = datetime.now().isoformat()
+
+        for _, row in df.iterrows():
+            job_id  = str(row.get('Job_ID', ''))
+            new_flag = str(row.get('computed_flag', 'none'))
+            old_flag = previous_flags.get(job_id, 'none')
+
+            if new_flag == old_flag:
+                continue  # No change — skip
+
+            records.append({
+                'job_id':            job_id,
+                'product_serial':    str(row.get('Product_Serial', '')),
+                'flag_from':         old_flag,
+                'flag_to':           new_flag,
+                'flag_reason':       str(row.get('flag_reason', '')),
+                'sla_hours_elapsed': float(row['sla_hours_elapsed'])
+                                     if pd.notna(row.get('sla_hours_elapsed')) else None,
+                'is_pepmove_leg':    bool(row.get('is_pepmove_leg', False)),
+                'changed_at':        now,
+            })
+
+        if not records:
+            print("[INFO] No flag changes to record")
+            return 0
+
+        try:
+            self.client.table('flag_history').insert(records).execute()
+            print(f"[OK] Recorded {len(records)} flag change(s)")
+            return len(records)
+        except Exception as e:
+            print(f"[WARN] Error inserting flag history: {e}")
+            return 0
+
+    def get_previous_flags(self) -> dict:
+        """
+        Fetches the current computed_flag for every job in job_snapshots.
+        Used as the 'previous' baseline before an import overwrites the rows.
+
+        Returns:
+            Dict of {job_id: computed_flag}
+        """
+        try:
+            all_records = []
+            offset = 0
+            while True:
+                res = self.client.table('job_snapshots') \
+                    .select('job_id,computed_flag') \
+                    .range(offset, offset + 999) \
+                    .execute()
+                if not res.data:
+                    break
+                all_records.extend(res.data)
+                if len(res.data) < 1000:
+                    break
+                offset += 1000
+            return {r['job_id']: r.get('computed_flag', 'none') for r in all_records}
+        except Exception as e:
+            print(f"[WARN] Could not fetch previous flags: {e}")
+            return {}
+
+    # ================================================================
+    # NEW: Reschedule Watch (V2.0)
+    # ================================================================
+
+    def upsert_reschedule_watch(self, rescheduled_jobs: list) -> int:
+        """
+        Creates or updates reschedule_watch tiles for rescheduled jobs.
+
+        Args:
+            rescheduled_jobs: List of dicts with keys:
+                product_serial, original_job_id, carrier, rescheduled_at
+
+        Returns:
+            Number of tiles upserted
+        """
+        if not rescheduled_jobs:
+            return 0
+
+        records = []
+        for job in rescheduled_jobs:
+            records.append({
+                'product_serial':   str(job.get('product_serial', '')),
+                'original_job_id':  str(job.get('original_job_id', '')),
+                'carrier':          str(job.get('carrier', '')),
+                'rescheduled_at':   job.get('rescheduled_at'),
+                'days_watching':    job.get('days_watching', 0),
+            })
+
+        try:
+            self.client.table('reschedule_watch').upsert(
+                records, on_conflict='product_serial'
+            ).execute()
+            print(f"[OK] Upserted {len(records)} reschedule watch tile(s)")
+            return len(records)
+        except Exception as e:
+            print(f"[WARN] Error upserting reschedule_watch: {e}")
+            return 0
+
+    def resolve_reschedule_watch(self, product_serial: str, resolved_by_job_id: str) -> bool:
+        """
+        Marks a reschedule_watch tile as resolved.
+        Called when a new job with the same serial reaches Entered/Scheduled.
+
+        Args:
+            product_serial:     Serial number of the resolved product
+            resolved_by_job_id: Job ID of the new replacement job
+        """
+        try:
+            self.client.table('reschedule_watch').update({
+                'resolved_by_job_id': resolved_by_job_id,
+                'resolved_at':        datetime.now().isoformat(),
+            }).eq('product_serial', product_serial).is_('resolved_at', 'null').execute()
+            print(f"[OK] Resolved reschedule watch for serial {product_serial}")
+            return True
+        except Exception as e:
+            print(f"[WARN] Error resolving reschedule_watch: {e}")
+            return False
+
+    def get_reschedule_watch(self) -> list:
+        """
+        Fetches all unresolved reschedule_watch tiles for the dashboard.
+
+        Returns:
+            List of dicts (one per active reschedule watch)
+        """
+        try:
+            res = self.client.table('reschedule_watch') \
+                .select('*') \
+                .is_('resolved_at', 'null') \
+                .order('rescheduled_at', desc=False) \
+                .execute()
+            return res.data or []
+        except Exception as e:
+            print(f"[WARN] Error fetching reschedule_watch: {e}")
+            return []
+
     def get_dwell_times(self) -> Optional[pd.DataFrame]:
+
         """
         Queries the v_stage_dwell_times view for average time in each stage.
         
