@@ -395,7 +395,7 @@ with tab_overview:
         _red = red_jobs[_rc].reset_index(drop=True).copy()
         if 'Planned_Date' in _red.columns:
             _red['Planned_Date'] = pd.to_datetime(_red['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
-        st.dataframe(_red, use_container_width=True, hide_index=True)
+        st.dataframe(_red, width='stretch', hide_index=True)
 
     # ── Overdue Arrivals ──
     today = datetime.now().date()
@@ -412,7 +412,7 @@ with tab_overview:
             _od = overdue[disp_cols].reset_index(drop=True).copy()
             if 'Planned_Date' in _od.columns:
                 _od['Planned_Date'] = pd.to_datetime(_od['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
-            st.dataframe(_od, use_container_width=True, hide_index=True)
+            st.dataframe(_od, width='stretch', hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -433,7 +433,7 @@ with tab_board:
             for _dc in ['Planned_Date', 'Actual_Date']:
                 if _dc in _bt.columns:
                     _bt[_dc] = pd.to_datetime(_bt[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
-            st.dataframe(_bt, use_container_width=True, hide_index=True, height=300)
+            st.dataframe(_bt, width='stretch', hide_index=True, height=300)
 
     DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'Stop_Number']
     DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Scan_User', 'Planned_Date', 'Carrier', 'Stop_Number']
@@ -515,7 +515,10 @@ with tab_flags:
             no_scan_r  = red_jobs[red_jobs['flag_reason'].str.contains('NOT scanned', case=False, na=False)]
             sla_breach = red_jobs[red_jobs['flag_reason'].str.contains('BREACHED', case=False, na=False)]
             pepmove_r  = red_jobs[red_jobs['flag_reason'].str.contains('PEPMOVE', case=False, na=False)]
-            other_r    = red_jobs[~red_jobs.index.isin(no_scan_r.index | sla_breach.index | pepmove_r.index)]
+            
+            # Use .union() to combine indices, as bitwise OR (|) can fail if shapes/types differ
+            combined_index = no_scan_r.index.union(sla_breach.index).union(pepmove_r.index)
+            other_r    = red_jobs[~red_jobs.index.isin(combined_index)]
         else:
             no_scan_r = sla_breach = pepmove_r = other_r = pd.DataFrame()
 
@@ -534,7 +537,7 @@ with tab_flags:
                 _ft['sla_hours_elapsed'] = _ft['sla_hours_elapsed'].apply(
                     lambda x: f"{x:.1f} hrs" if pd.notna(x) else '—'
                 )
-            st.dataframe(_ft, use_container_width=True, hide_index=True)
+            st.dataframe(_ft, width='stretch', hide_index=True)
             st.markdown(f"<div style='font-size:0.7rem;color:#808285;margin-bottom:12px;'>{desc}</div>",
                         unsafe_allow_html=True)
 
@@ -566,7 +569,7 @@ with tab_flags:
             _yt['sla_hours_elapsed'] = _yt['sla_hours_elapsed'].apply(
                 lambda x: f"{x:.1f} hrs" if pd.notna(x) else '—'
             )
-        st.dataframe(_yt, use_container_width=True, hide_index=True)
+        st.dataframe(_yt, width='stretch', hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -632,7 +635,7 @@ with tab_reschedules:
             _rs = rescheduled_fm[disp_cols].reset_index(drop=True).copy()
             if 'Planned_Date' in _rs.columns:
                 _rs['Planned_Date'] = pd.to_datetime(_rs['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
-            st.dataframe(_rs, use_container_width=True, hide_index=True)
+            st.dataframe(_rs, width='stretch', hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -672,7 +675,7 @@ with tab_full:
 
     st.dataframe(
         df_display[display_cols].reset_index(drop=True),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         height=600
     )
