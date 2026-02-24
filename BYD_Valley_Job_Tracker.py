@@ -390,7 +390,7 @@ with tab_overview:
     if not red_jobs.empty:
         st.markdown("---")
         st.markdown(f"### 🔴 Active Red Flags ({len(red_jobs)})")
-        _rc = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
+        _rc = [c for c in ['Job_ID', 'Product_Name', 'Piece_Count', 'Planned_Date', 'Carrier', 'State',
                             'Assigned_Driver', 'flag_reason'] if c in red_jobs.columns]
         _red = red_jobs[_rc].reset_index(drop=True).copy()
         if 'Planned_Date' in _red.columns:
@@ -408,7 +408,7 @@ with tab_overview:
             st.markdown("---")
             st.markdown(f"### ⚠️ Overdue Arrivals ({len(overdue)})")
             st.markdown("*Planned date has passed — not yet arrived at dock.*")
-            disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State'] if c in overdue.columns]
+            disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Piece_Count', 'Planned_Date', 'Carrier', 'State'] if c in overdue.columns]
             _od = overdue[disp_cols].reset_index(drop=True).copy()
             if 'Planned_Date' in _od.columns:
                 _od['Planned_Date'] = pd.to_datetime(_od['Planned_Date'], errors='coerce').dt.strftime('%m/%d/%Y')
@@ -435,9 +435,9 @@ with tab_board:
                     _bt[_dc] = pd.to_datetime(_bt[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
             st.dataframe(_bt, width='stretch', hide_index=True, height=300)
 
-    DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State', 'Stop_Number']
-    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Scan_User', 'Planned_Date', 'Carrier', 'State', 'Stop_Number']
-    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier', 'State']
+    DOCK_COLS     = ['Job_ID', 'Product_Name', 'Piece_Count', 'Planned_Date', 'Carrier', 'State', 'Stop_Number']
+    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Piece_Count', 'Scan_User', 'Planned_Date', 'Carrier', 'State', 'Stop_Number']
+    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Piece_Count', 'Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier', 'State']
 
     with col_dock:
         st.markdown("**Dock & Intake Operations**")
@@ -522,7 +522,7 @@ with tab_flags:
         else:
             no_scan_r = sla_breach = pepmove_r = other_r = pd.DataFrame()
 
-        FLAG_COLS = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
+        FLAG_COLS = ['Job_ID', 'Product_Name', 'Piece_Count', 'Planned_Date', 'Carrier', 'State',
                      'Assigned_Driver', 'Scan_User', 'sla_hours_elapsed', 'flag_reason']
 
         def flag_table(frame, title, icon, desc):
@@ -559,7 +559,7 @@ with tab_flags:
         st.info("These units were scanned within the last 48 hours but have no driver assigned. "
                 "Assign a driver before the 48-hr breach window.")
 
-        Y_COLS = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
+        Y_COLS = ['Job_ID', 'Product_Name', 'Piece_Count', 'Planned_Date', 'Carrier', 'State',
                   'Scan_User', 'sla_hours_elapsed', 'sla_breach_level', 'flag_reason']
         show = [c for c in Y_COLS if c in yellow_jobs.columns]
         _yt = yellow_jobs[show].reset_index(drop=True).copy()
@@ -628,7 +628,7 @@ with tab_reschedules:
         if rescheduled_fm.empty:
             st.success("✅ No re-scheduled jobs in the current date range.")
         else:
-            disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Product_Serial',
+            disp_cols = [c for c in ['Job_ID', 'Product_Name', 'Piece_Count', 'Product_Serial',
                                       'Planned_Date', 'Status', 'Carrier', 'State',
                                       'Scan_User', 'Assigned_Driver']
                          if c in rescheduled_fm.columns]
@@ -667,7 +667,7 @@ with tab_full:
     df_display['Flag'] = df_display.apply(visual_flag, axis=1)
 
     display_cols = [c for c in [
-        'Flag', 'Job_ID', 'Product_Name', 'Product_Serial',
+        'Flag', 'Job_ID', 'Product_Name', 'Piece_Count', 'Product_Serial',
         'Planned_Date', 'Actual_Date', 'Carrier', 'State',
         'Scan_User', 'Assigned_Driver', 'White_Glove', 'Stop_Number',
         'flag_reason'
