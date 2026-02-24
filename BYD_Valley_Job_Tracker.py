@@ -435,9 +435,9 @@ with tab_board:
                     _bt[_dc] = pd.to_datetime(_bt[_dc], errors='coerce').dt.strftime('%m/%d/%Y')
             st.dataframe(_bt, width='stretch', hide_index=True, height=300)
 
-    DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'Stop_Number']
-    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Scan_User', 'Planned_Date', 'Carrier', 'Stop_Number']
-    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier']
+    DOCK_COLS     = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State', 'Stop_Number']
+    DISPATCH_COLS = ['Job_ID', 'Product_Name', 'Scan_User', 'Planned_Date', 'Carrier', 'State', 'Stop_Number']
+    TRANSIT_COLS  = ['Job_ID', 'Product_Name', 'Scan_User', 'Assigned_Driver', 'Planned_Date', 'Carrier', 'State']
 
     with col_dock:
         st.markdown("**Dock & Intake Operations**")
