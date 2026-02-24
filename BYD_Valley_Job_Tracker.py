@@ -390,7 +390,7 @@ with tab_overview:
     if not red_jobs.empty:
         st.markdown("---")
         st.markdown(f"### 🔴 Active Red Flags ({len(red_jobs)})")
-        _rc = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier',
+        _rc = [c for c in ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
                             'Assigned_Driver', 'flag_reason'] if c in red_jobs.columns]
         _red = red_jobs[_rc].reset_index(drop=True).copy()
         if 'Planned_Date' in _red.columns:
@@ -559,7 +559,7 @@ with tab_flags:
         st.info("These units were scanned within the last 48 hours but have no driver assigned. "
                 "Assign a driver before the 48-hr breach window.")
 
-        Y_COLS = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier',
+        Y_COLS = ['Job_ID', 'Product_Name', 'Planned_Date', 'Carrier', 'State',
                   'Scan_User', 'sla_hours_elapsed', 'sla_breach_level', 'flag_reason']
         show = [c for c in Y_COLS if c in yellow_jobs.columns]
         _yt = yellow_jobs[show].reset_index(drop=True).copy()
