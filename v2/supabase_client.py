@@ -90,6 +90,7 @@ class SupabaseClient:
                                      if pd.notna(row.get('sla_hours_elapsed')) else None,
                 'sla_breach_level': str(row.get('sla_breach_level', 'n/a')),
                 'is_pepmove_leg':   bool(row.get('is_pepmove_leg', False)),
+                'job_date':         str(row.get('job_date_raw', '')),
             }
             records.append(record)
         
@@ -102,6 +103,7 @@ class SupabaseClient:
             'job_type','arrival_time','dwell_minutes','lead_time_days','assigned_driver',
             # V2.0 flag columns
             'computed_flag','flag_reason','sla_hours_elapsed','sla_breach_level','is_pepmove_leg',
+            'job_date',
         }
 
         try:
@@ -481,6 +483,7 @@ class SupabaseClient:
                 'arrival_time': row.get('Arrival_Time').isoformat() if pd.notna(row.get('Arrival_Time')) else None,
                 'dwell_minutes': float(row.get('Dwell_Minutes')) if pd.notna(row.get('Dwell_Minutes')) else None,
                 'lead_time_days': int(row.get('Lead_Time_Days')) if pd.notna(row.get('Lead_Time_Days')) else None,
+                'job_date': str(row.get('job_date_raw', '')),
             }
             records.append(record)
         
@@ -488,7 +491,7 @@ class SupabaseClient:
             'market','city','customer_name','delivery_address','date_received',
             'job_created_at','client_order_number','prior_job_id','signed_by',
             'delivery_scan_count','product_weight_lbs','crew_required','driver_notes',
-            'job_type','arrival_time','dwell_minutes','lead_time_days'
+            'job_type','arrival_time','dwell_minutes','lead_time_days','job_date'
         }
         try:
             # Upsert on job_id — safe to re-run

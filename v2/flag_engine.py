@@ -149,21 +149,28 @@ def evaluate_flags(df: pd.DataFrame) -> pd.DataFrame:
         customer_name = str(_col(row, 'Customer_Name', ''))
         delivery_addr = str(_col(row, 'Delivery_Address', ''))
 
-        # Scan presence
-        scan_user  = str(_col(row, 'Scan_User', ''))
-        scan_count = pd.to_numeric(row.get('Scan_Count', 0), errors='coerce')
-        if (scan_user and scan_user.lower() not in ['', 'nan', 'none']) or \
-           (scan_count and scan_count > 0):
-            has_scan = True
-            scan_ts  = row.get('Scan_Timestamp', None)
-
         # Driver presence
         driver = str(_col(row, 'Assigned_Driver', ''))
         if driver and driver.lower() not in ['', 'nan', 'none']:
             has_driver = True
 
-        # Planned date
+        # Scan presence and Planned date
+        scan_user  = str(_col(row, 'Scan_User', ''))
+        scan_count = pd.to_numeric(row.get('Scan_Count', 0), errors='coerce')
         planned_date = row.get('Planned_Date', None)
+        
+        # Operational Rule: If it has a delivery date (planned_date), it has been scanned.
+        if (scan_user and scan_user.lower() not in ['', 'nan', 'none']) or \
+           (scan_count and scan_count > 0) or \
+           (planned_date is not None and pd.notna(planned_date)):
+            has_scan = True
+            
+            # Use explicit scan timestamp if available, else fallback to planned_date (start of day)
+            scan_ts = row.get('Scan_Timestamp', None)
+            if pd.isna(scan_ts) and pd.notna(planned_date):
+                scan_ts = pd.Timestamp(planned_date)
+            elif pd.isna(scan_ts):
+                scan_ts = None
 
         # PEPMOVE leg detection
         pepmove = _is_pepmove_leg(customer_name, delivery_addr)

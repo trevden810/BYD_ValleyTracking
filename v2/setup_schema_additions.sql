@@ -23,6 +23,7 @@ ALTER TABLE job_snapshots ADD COLUMN IF NOT EXISTS arrival_time TIMESTAMP;
 ALTER TABLE job_snapshots ADD COLUMN IF NOT EXISTS dwell_minutes NUMERIC;
 ALTER TABLE job_snapshots ADD COLUMN IF NOT EXISTS lead_time_days INTEGER;
 ALTER TABLE job_snapshots ADD COLUMN IF NOT EXISTS assigned_driver TEXT;
+ALTER TABLE job_snapshots ADD COLUMN IF NOT EXISTS job_date TEXT;
 
 -- ── job_history ──────────────────────────────────────────────
 ALTER TABLE job_history ADD COLUMN IF NOT EXISTS market TEXT;
@@ -42,6 +43,7 @@ ALTER TABLE job_history ADD COLUMN IF NOT EXISTS job_type TEXT;
 ALTER TABLE job_history ADD COLUMN IF NOT EXISTS arrival_time TIMESTAMP;
 ALTER TABLE job_history ADD COLUMN IF NOT EXISTS dwell_minutes NUMERIC;
 ALTER TABLE job_history ADD COLUMN IF NOT EXISTS lead_time_days INTEGER;
+ALTER TABLE job_history ADD COLUMN IF NOT EXISTS job_date TEXT;
 
 -- ── New indexes for the most-queried new columns ─────────────
 CREATE INDEX IF NOT EXISTS idx_job_snapshots_market ON job_snapshots(market);

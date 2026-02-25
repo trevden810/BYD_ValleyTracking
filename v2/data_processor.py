@@ -103,8 +103,11 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
     # 1. Date Handling
     if 'job_date' in processed.columns:
         processed['Planned_Date'] = pd.to_datetime(processed['job_date'], errors='coerce')
+        # Ensure job_date is kept as a string for DB storage mapping
+        processed['job_date_raw'] = processed['job_date'].astype(str).replace('nan', '')
     else:
         processed['Planned_Date'] = pd.NaT
+        processed['job_date_raw'] = ''
 
     # 2. Actual Date (job_date + time_complete)
     def parse_actual_date(row):
